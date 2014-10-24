@@ -1,0 +1,16 @@
+{
+  "name": "cylon-example-chrome",
+  "version": "0.0.1",
+
+  "private": true,
+
+  "scripts": {
+    "start": "node ./bin/serve",
+    "build": "browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > ./js/robot.js"
+  },
+
+  "dependencies": {
+    "cylon": "~0.19.1",
+    "cylon-firmata": "~0.16.0"
+  }
+}

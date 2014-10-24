@@ -1,0 +1,45 @@
+#!/usr/bin/env node
+
+var path = require('path'),
+    http = require('http'),
+    url = require('url'),
+    fs = require('fs');
+
+// root path to content
+var ROOT = path.resolve(__dirname, "../");
+
+// port to serve from
+var PORT = process.env.PORT || 3000;
+
+http.createServer(function(req, res) {
+  var uri = url.parse(req.url).pathname,
+      filename = path.join(ROOT, uri);
+
+  fs.exists(filename, function(exists) {
+    if (!exists) {
+      res.writeHead(404, {"Content-Type": "text/plain"});
+      res.write("404 Not Found\n");
+      res.end();
+      return;
+    }
+
+    if (fs.statSync(filename).isDirectory()) {
+      filename += '/index.html';
+    }
+
+    fs.readFile(filename, "binary", function(err, file) {
+      if (err) {
+        res.writeHead(500, {"Content-Type": "text/plain"});
+        res.write(err + "\n");
+        res.end();
+        return;
+      }
+
+      res.writeHead(200);
+      res.write(file, "binary");
+      res.end();
+    });
+  });
+}).listen(parseInt(PORT, 10));
+
+console.log("Server listening at " + PORT);
