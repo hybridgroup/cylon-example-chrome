@@ -4,8 +4,11 @@ var Cylon = require('cylon');
 
 // log directly to the page if we're in the browser
 if (process.browser) {
-  var Logger = require('./browser-logger')
-  Cylon.Logger.setup(Logger);
+  var Logger = require('./browser-logger');
+
+  Cylon.config({
+    logging: { logger: Logger }
+  });
 }
 
 Cylon.robot({
