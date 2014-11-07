@@ -10,7 +10,7 @@
   },
 
   "dependencies": {
-    "cylon": "~0.19.1",
-    "cylon-firmata": "~0.16.0"
+    "cylon": "~0.20.2",
+    "cylon-firmata": "~0.17.0"
   }
 }
