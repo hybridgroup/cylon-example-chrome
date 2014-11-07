@@ -158,130 +158,134 @@ Adaptor.prototype._convertPinMode = function(mode) {
   }
 };
 
-},{"cylon":46,"firmata":4}],3:[function(require,module,exports){
+},{"cylon":47,"firmata":4}],3:[function(require,module,exports){
 /**
  * "Inspired" by Encoder7Bit.h/Encoder7Bit.cpp in the
  * Firmata source code.
  */
 module.exports = {
-    to7BitArray: function(data) {
-        var shift = 0;
-        var previous = 0;
-        var output = [];
+  to7BitArray: function(data) {
+    var shift = 0;
+    var previous = 0;
+    var output = [];
 
-        data.forEach(function(byte) {
-            if (shift == 0) {
-                output.push(byte & 0x7f)
-                shift++;
-                previous = byte >> 7;
-            } else {
-                output.push(((byte << shift) & 0x7f) | previous);
-                if (shift == 6) {
-                    output.push(byte >> 1);
-                    shift = 0;
-                } else {
-                    shift++;
-                    previous = byte >> (8 - shift);
-                }
-            }
-        })
-
-        if (shift > 0) {
-            output.push(previous);
+    data.forEach(function(byte) {
+      if (shift === 0) {
+        output.push(byte & 0x7f);
+        shift++;
+        previous = byte >> 7;
+      } else {
+        output.push(((byte << shift) & 0x7f) | previous);
+        if (shift === 6) {
+          output.push(byte >> 1);
+          shift = 0;
+        } else {
+          shift++;
+          previous = byte >> (8 - shift);
         }
+      }
+    });
 
-        return output;
-    },
-    from7BitArray: function(encoded) {
-        var expectedBytes = (encoded.length) * 7 >> 3;
-        var decoded = [];
-
-        for (var i = 0; i < expectedBytes ; i++) {
-            var j = i << 3;
-            var pos = parseInt(j/7);
-            var shift = j % 7;
-            decoded[i] = (encoded[pos] >> shift) | ((encoded[pos+1] << (7 - shift)) & 0xFF);
-        }
-
-        return decoded;
+    if (shift > 0) {
+      output.push(previous);
     }
-}
+
+    return output;
+  },
+  from7BitArray: function(encoded) {
+    var expectedBytes = (encoded.length) * 7 >> 3;
+    var decoded = [];
+
+    for (var i = 0; i < expectedBytes; i++) {
+      var j = i << 3;
+      var pos = parseInt(j / 7, 10);
+      var shift = j % 7;
+      decoded[i] = (encoded[pos] >> shift) | ((encoded[pos + 1] << (7 - shift)) & 0xFF);
+    }
+
+    return decoded;
+  }
+};
 
 },{}],4:[function(require,module,exports){
-(function (Buffer){
+(function (process,Buffer){
+require("es6-shim");
 /**
  * @author Julian Gautier
  */
-
 /**
  * Module Dependencies
  */
-
-var util = require('util'),
-    events = require('events'),
-    Encoder7Bit = require('./encoder7bit'),
-    OneWireUtils = require('./onewireutils'),
-    SerialPort = null;
+var util = require("util"),
+  Emitter = require("events").EventEmitter,
+  chrome = chrome || undefined,
+  Encoder7Bit = require("./encoder7bit"),
+  OneWireUtils = require("./onewireutils"),
+  SerialPort = null;
 
 try {
-    SerialPort = require('browser-serialport').SerialPort;
+  if (process.browser) {
+    SerialPort = require("browser-serialport").SerialPort;
+  } else {
+    SerialPort = require("serialport").SerialPort;
+  }
 } catch (err) {
-    SerialPort = null;
+  SerialPort = null;
 }
 
 if (SerialPort == null) {
-    console.log("It looks like serialport didn't compile properly. This is a common problem and its fix is well documented here https://github.com/voodootikigod/node-serialport#to-install");
-    throw "Missing serialport dependency";
+  console.log("It looks like serialport didn't compile properly. This is a common problem and its fix is well documented here https://github.com/voodootikigod/node-serialport#to-install");
+  throw "Missing serialport dependency";
 }
 
 /**
  * constants
  */
 
-var PIN_MODE = 0xF4,
-    REPORT_DIGITAL = 0xD0,
-    REPORT_ANALOG = 0xC0,
-    DIGITAL_MESSAGE = 0x90,
-    START_SYSEX = 0xF0,
-    END_SYSEX = 0xF7,
-    QUERY_FIRMWARE = 0x79,
-    REPORT_VERSION = 0xF9,
-    ANALOG_MESSAGE = 0xE0,
-    EXTENDED_ANALOG = 0x6F,
-    CAPABILITY_QUERY = 0x6B,
-    CAPABILITY_RESPONSE = 0x6C,
-    PIN_STATE_QUERY = 0x6D,
-    PIN_STATE_RESPONSE = 0x6E,
-    ANALOG_MAPPING_QUERY = 0x69,
-    ANALOG_MAPPING_RESPONSE = 0x6A,
-    I2C_REQUEST = 0x76,
-    I2C_REPLY = 0x77,
-    I2C_CONFIG = 0x78,
-    STRING_DATA = 0x71,
-    SYSTEM_RESET = 0xFF,
-    PULSE_OUT = 0x73,
-    PULSE_IN = 0x74,
-    SAMPLING_INTERVAL = 0x7A,
-    STEPPER = 0x72,
-    ONEWIRE_DATA = 0x73,
-
-    ONEWIRE_CONFIG_REQUEST = 0x41,
-    ONEWIRE_SEARCH_REQUEST = 0x40,
-    ONEWIRE_SEARCH_REPLY = 0x42,
-    ONEWIRE_SEARCH_ALARMS_REQUEST = 0x44,
-    ONEWIRE_SEARCH_ALARMS_REPLY = 0x45,
-    ONEWIRE_READ_REPLY = 0x43,
-    ONEWIRE_RESET_REQUEST_BIT = 0x01,
-    ONEWIRE_READ_REQUEST_BIT = 0x08,
-    ONEWIRE_DELAY_REQUEST_BIT = 0x10,
-    ONEWIRE_WRITE_REQUEST_BIT = 0x20,
-    ONEWIRE_WITHDATA_REQUEST_BITS = 0x3C;
+var ANALOG_MAPPING_QUERY = 0x69,
+ANALOG_MAPPING_RESPONSE = 0x6A,
+ANALOG_MESSAGE = 0xE0,
+CAPABILITY_QUERY = 0x6B,
+CAPABILITY_RESPONSE = 0x6C,
+DIGITAL_MESSAGE = 0x90,
+END_SYSEX = 0xF7,
+EXTENDED_ANALOG = 0x6F,
+I2C_CONFIG = 0x78,
+I2C_REPLY = 0x77,
+I2C_REQUEST = 0x76,
+ONEWIRE_CONFIG_REQUEST = 0x41,
+ONEWIRE_DATA = 0x73,
+ONEWIRE_DELAY_REQUEST_BIT = 0x10,
+ONEWIRE_READ_REPLY = 0x43,
+ONEWIRE_READ_REQUEST_BIT = 0x08,
+ONEWIRE_RESET_REQUEST_BIT = 0x01,
+ONEWIRE_SEARCH_ALARMS_REPLY = 0x45,
+ONEWIRE_SEARCH_ALARMS_REQUEST = 0x44,
+ONEWIRE_SEARCH_REPLY = 0x42,
+ONEWIRE_SEARCH_REQUEST = 0x40,
+ONEWIRE_WITHDATA_REQUEST_BITS = 0x3C,
+ONEWIRE_WRITE_REQUEST_BIT = 0x20,
+PIN_MODE = 0xF4,
+PIN_STATE_QUERY = 0x6D,
+PIN_STATE_RESPONSE = 0x6E,
+PULSE_IN = 0x74,
+PULSE_OUT = 0x73,
+QUERY_FIRMWARE = 0x79,
+REPORT_ANALOG = 0xC0,
+REPORT_DIGITAL = 0xD0,
+REPORT_VERSION = 0xF9,
+SAMPLING_INTERVAL = 0x7A,
+SERVO_CONFIG = 0x70,
+START_SYSEX = 0xF0,
+STEPPER = 0x72,
+STRING_DATA = 0x71,
+SYSTEM_RESET = 0xFF;
 
 /**
-* MIDI_RESPONSE contains functions to be called when we receive a MIDI message from the arduino.
-* used as a switch object as seen here http://james.padolsey.com/javascript/how-to-avoid-switch-case-syndrome/
-* @private
-*/
+ * MIDI_RESPONSE contains functions to be called when we receive a MIDI message from the arduino.
+ * used as a switch object as seen here http://james.padolsey.com/javascript/how-to-avoid-switch-case-syndrome/
+ * @private
+ */
 
 var MIDI_RESPONSE = {};
 
@@ -291,56 +295,60 @@ var MIDI_RESPONSE = {};
  * @param {Board} board the current arduino board we are working with.
  */
 
-MIDI_RESPONSE[REPORT_VERSION] = function (board) {
-    board.version.major = board.currentBuffer[1];
-    board.version.minor = board.currentBuffer[2];
-    for (var i = 0; i < 16; i++) {
-        board.sp.write(new Buffer([REPORT_DIGITAL | i, 1]));
-        board.sp.write(new Buffer([REPORT_ANALOG | i, 1]));
-    }
-    board.emit('reportversion');
+MIDI_RESPONSE[REPORT_VERSION] = function(board) {
+  board.version.major = board.currentBuffer[1];
+  board.version.minor = board.currentBuffer[2];
+  board.emit("reportversion");
 };
 
 /**
- * Handles a ANALOG_MESSAGE response and emits 'analog-read' and 'analog-read-'+n events where n is the pin number.
+ * Handles a ANALOG_MESSAGE response and emits "analog-read" and "analog-read-"+n events where n is the pin number.
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-MIDI_RESPONSE[ANALOG_MESSAGE] = function (board) {
-    var value = board.currentBuffer[1] | (board.currentBuffer[2] << 7);
-    var port = board.currentBuffer[0] & 0x0F;
-    if (board.pins[board.analogPins[port]]) {
-        board.pins[board.analogPins[port]].value = value;
-    }
-    board.emit('analog-read-' + port, value);
-    board.emit('analog-read', {
-        pin: port,
-        value: value
-    });
+MIDI_RESPONSE[ANALOG_MESSAGE] = function(board) {
+  var value = board.currentBuffer[1] | (board.currentBuffer[2] << 7);
+  var pin = board.currentBuffer[0] & 0x0F;
+
+  if (board.pins[board.analogPins[pin]]) {
+    board.pins[board.analogPins[pin]].value = value;
+  }
+
+  board.emit("analog-read-" + pin, value);
+  board.emit("analog-read", {
+    pin: pin,
+    value: value
+  });
 };
 
 /**
- * Handles a DIGITAL_MESSAGE response and emits a 'digital-read' and 'digital-read-'+n events where n is the pin number.
+ * Handles a DIGITAL_MESSAGE response and emits:
+ * "digital-read"
+ * "digital-read-"+n
+ *
+ * Where n is the pin number.
+ *
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-MIDI_RESPONSE[DIGITAL_MESSAGE] = function (board) {
-    var port = (board.currentBuffer[0] & 0x0F);
-    var portValue = board.currentBuffer[1] | (board.currentBuffer[2] << 7);
-    for (var i = 0; i < 8; i++) {
-        var pinNumber = 8 * port + i;
-        var pin = board.pins[pinNumber];
-        if (pin && (pin.mode === board.MODES.INPUT)) {
-            pin.value = (portValue >> (i & 0x07)) & 0x01;
-            board.emit('digital-read-' + pinNumber, pin.value);
-            board.emit('digital-read', {
-                pin: pinNumber,
-                value: pin.value
-            });
-        }
+MIDI_RESPONSE[DIGITAL_MESSAGE] = function(board) {
+  var port = (board.currentBuffer[0] & 0x0F);
+  var portValue = board.currentBuffer[1] | (board.currentBuffer[2] << 7);
+
+  for (var i = 0; i < 8; i++) {
+    var pinNumber = 8 * port + i;
+    var pin = board.pins[pinNumber];
+    if (pin && (pin.mode === board.MODES.INPUT)) {
+      pin.value = (portValue >> (i & 0x07)) & 0x01;
+      board.emit("digital-read-" + pinNumber, pin.value);
+      board.emit("digital-read", {
+        pin: pinNumber,
+        value: pin.value
+      });
     }
+  }
 };
 
 /**
@@ -352,148 +360,151 @@ MIDI_RESPONSE[DIGITAL_MESSAGE] = function (board) {
 var SYSEX_RESPONSE = {};
 
 /**
- * Handles a QUERY_FIRMWARE response and emits the 'queryfirmware' event
+ * Handles a QUERY_FIRMWARE response and emits the "queryfirmware" event
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-SYSEX_RESPONSE[QUERY_FIRMWARE] = function (board) {
-    var firmwareBuf = [];
-    board.firmware.version = {};
-    board.firmware.version.major = board.currentBuffer[2];
-    board.firmware.version.minor = board.currentBuffer[3];
-    for (var i = 4, length = board.currentBuffer.length - 2; i < length; i += 2) {
-        firmwareBuf.push((board.currentBuffer[i] & 0x7F) | ((board.currentBuffer[i + 1] & 0x7F) << 7));
-    }
+SYSEX_RESPONSE[QUERY_FIRMWARE] = function(board) {
+  var firmwareBuf = [];
+  board.firmware.version = {};
+  board.firmware.version.major = board.currentBuffer[2];
+  board.firmware.version.minor = board.currentBuffer[3];
+  for (var i = 4, length = board.currentBuffer.length - 2; i < length; i += 2) {
+    firmwareBuf.push((board.currentBuffer[i] & 0x7F) | ((board.currentBuffer[i + 1] & 0x7F) << 7));
+  }
 
-
-    board.firmware.name = new Buffer(firmwareBuf).toString('utf8', 0, firmwareBuf.length);
-    board.emit('queryfirmware');
+  board.firmware.name = new Buffer(firmwareBuf).toString("utf8", 0, firmwareBuf.length);
+  board.emit("queryfirmware");
 };
 
 /**
- * Handles a CAPABILITY_RESPONSE response and emits the 'capability-query' event
+ * Handles a CAPABILITY_RESPONSE response and emits the "capability-query" event
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-SYSEX_RESPONSE[CAPABILITY_RESPONSE] = function (board) {
-    var supportedModes = 0;
+SYSEX_RESPONSE[CAPABILITY_RESPONSE] = function(board) {
+  var supportedModes = 0;
 
-    function pushModes(modesArray, mode) {
-        if (supportedModes & (1 << board.MODES[mode])) {
-            modesArray.push(board.MODES[mode]);
-        }
+  function pushModes(modesArray, mode) {
+    if (supportedModes & (1 << board.MODES[mode])) {
+      modesArray.push(board.MODES[mode]);
     }
+  }
 
-    for (var i = 2, n = 0; i < board.currentBuffer.length - 1; i++) {
-        if (board.currentBuffer[i] === 127) {
-            var modesArray = [];
-            Object.keys(board.MODES).forEach(pushModes.bind(null, modesArray));
-            board.pins.push({
-                supportedModes: modesArray,
-                mode: board.MODES.UNKNOWN,
-                value : 0,
-                report: 1
-            });
-            supportedModes = 0;
-            n = 0;
-            continue;
-        }
-        if (n === 0) {
-            supportedModes |= (1 << board.currentBuffer[i]);
-        }
-        n ^= 1;
+  for (var i = 2, n = 0; i < board.currentBuffer.length - 1; i++) {
+    if (board.currentBuffer[i] === 127) {
+      var modesArray = [];
+      Object.keys(board.MODES).forEach(pushModes.bind(null, modesArray));
+      board.pins.push({
+        supportedModes: modesArray,
+        mode: board.MODES.UNKNOWN,
+        value: 0,
+        report: 1
+      });
+      supportedModes = 0;
+      n = 0;
+      continue;
     }
-    board.emit('capability-query');
+    if (n === 0) {
+      supportedModes |= (1 << board.currentBuffer[i]);
+    }
+    n ^= 1;
+  }
+  board.emit("capability-query");
 };
 
 /**
- * Handles a PIN_STATE response and emits the 'pin-state-'+n event where n is the pin number
+ * Handles a PIN_STATE response and emits the 'pin-state-'+n event where n is the pin number.
+ *
+ * Note about pin state: For output modes, the state is any value that has been
+ * previously written to the pin. For input modes, the state is the status of
+ * the pullup resistor.
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
 SYSEX_RESPONSE[PIN_STATE_RESPONSE] = function (board) {
-    var pin = board.currentBuffer[2];
-    board.pins[pin].mode = board.currentBuffer[3];
-    board.pins[pin].value = board.currentBuffer[4];
-    if (board.currentBuffer.length > 6) {
-        board.pins[pin].value |= (board.currentBuffer[5] << 7);
-    }
-    if (board.currentBuffer.length > 7) {
-        board.pins[pin].value |= (board.currentBuffer[6] << 14);
-    }
-    board.emit('pin-state-' + pin);
+  var pin = board.currentBuffer[2];
+  board.pins[pin].mode = board.currentBuffer[3];
+  board.pins[pin].state = board.currentBuffer[4];
+  if (board.currentBuffer.length > 6) {
+    board.pins[pin].state |= (board.currentBuffer[5] << 7);
+  }
+  if (board.currentBuffer.length > 7) {
+    board.pins[pin].state |= (board.currentBuffer[6] << 14);
+  }
+  board.emit("pin-state-" + pin);
 };
 
 /**
- * Handles a ANALOG_MAPPING_RESPONSE response and emits the 'analog-mapping-query' event.
+ * Handles a ANALOG_MAPPING_RESPONSE response and emits the "analog-mapping-query" event.
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-SYSEX_RESPONSE[ANALOG_MAPPING_RESPONSE] = function (board) {
-    var pin = 0;
-    var currentValue;
-    for (var i = 2; i < board.currentBuffer.length - 1; i++) {
-        currentValue = board.currentBuffer[i];
-        board.pins[pin].analogChannel = currentValue;
-        if (currentValue !== 127) {
-            board.analogPins.push(pin);
-        }
-        pin++;
+SYSEX_RESPONSE[ANALOG_MAPPING_RESPONSE] = function(board) {
+  var pin = 0;
+  var currentValue;
+  for (var i = 2; i < board.currentBuffer.length - 1; i++) {
+    currentValue = board.currentBuffer[i];
+    board.pins[pin].analogChannel = currentValue;
+    if (currentValue !== 127) {
+      board.analogPins.push(pin);
     }
-    board.emit('analog-mapping-query');
+    pin++;
+  }
+  board.emit("analog-mapping-query");
 };
 
 /**
- * Handles a I2C_REPLY response and emits the 'I2C-reply-'+n event where n is the slave address of the I2C device.
+ * Handles a I2C_REPLY response and emits the "I2C-reply-"+n event where n is the slave address of the I2C device.
  * The event is passed the buffer of data sent from the I2C Device
  * @private
  * @param {Board} board the current arduino board we are working with.
  */
 
-SYSEX_RESPONSE[I2C_REPLY] = function (board) {
-    var replyBuffer = [];
-    var slaveAddress = (board.currentBuffer[2] & 0x7F) | ((board.currentBuffer[3] & 0x7F) << 7);
-    var register = (board.currentBuffer[4] & 0x7F) | ((board.currentBuffer[5] & 0x7F) << 7);
-    for (var i = 6, length = board.currentBuffer.length - 1; i < length; i += 2) {
-        replyBuffer.push(board.currentBuffer[i] | (board.currentBuffer[i + 1] << 7));
-    }
-    board.emit('I2C-reply-' + slaveAddress, replyBuffer);
+SYSEX_RESPONSE[I2C_REPLY] = function(board) {
+  var replyBuffer = [];
+  var slaveAddress = (board.currentBuffer[2] & 0x7F) | ((board.currentBuffer[3] & 0x7F) << 7);
+  var register = (board.currentBuffer[4] & 0x7F) | ((board.currentBuffer[5] & 0x7F) << 7);
+  for (var i = 6, length = board.currentBuffer.length - 1; i < length; i += 2) {
+    replyBuffer.push(board.currentBuffer[i] | (board.currentBuffer[i + 1] << 7));
+  }
+  board.emit("I2C-reply-" + slaveAddress, replyBuffer);
 };
 
 SYSEX_RESPONSE[ONEWIRE_DATA] = function(board) {
-    var subCommand = board.currentBuffer[2];
+  var subCommand = board.currentBuffer[2];
 
-    if(!SYSEX_RESPONSE[subCommand]) {
-        return;
-    }
+  if (!SYSEX_RESPONSE[subCommand]) {
+    return;
+  }
 
-    SYSEX_RESPONSE[subCommand](board);
+  SYSEX_RESPONSE[subCommand](board);
 };
 
 SYSEX_RESPONSE[ONEWIRE_SEARCH_REPLY] = function(board) {
-    var pin = board.currentBuffer[3];
-    var replyBuffer = board.currentBuffer.slice(4, board.currentBuffer.length -1);
+  var pin = board.currentBuffer[3];
+  var replyBuffer = board.currentBuffer.slice(4, board.currentBuffer.length - 1);
 
-    board.emit('1-wire-search-reply-' + pin, OneWireUtils.readDevices(replyBuffer));
+  board.emit("1-wire-search-reply-" + pin, OneWireUtils.readDevices(replyBuffer));
 };
 
 SYSEX_RESPONSE[ONEWIRE_SEARCH_ALARMS_REPLY] = function(board) {
-    var pin = board.currentBuffer[3];
-    var replyBuffer = board.currentBuffer.slice(4, board.currentBuffer.length -1);
+  var pin = board.currentBuffer[3];
+  var replyBuffer = board.currentBuffer.slice(4, board.currentBuffer.length - 1);
 
-    board.emit('1-wire-search-alarms-reply-' + pin, OneWireUtils.readDevices(replyBuffer));
+  board.emit("1-wire-search-alarms-reply-" + pin, OneWireUtils.readDevices(replyBuffer));
 };
 
 SYSEX_RESPONSE[ONEWIRE_READ_REPLY] = function(board) {
-    var encoded = board.currentBuffer.slice(4, board.currentBuffer.length -1);
-    var decoded = Encoder7Bit.from7BitArray(encoded);
-    var correlationId = (decoded[1] << 8) | decoded[0];
+  var encoded = board.currentBuffer.slice(4, board.currentBuffer.length - 1);
+  var decoded = Encoder7Bit.from7BitArray(encoded);
+  var correlationId = (decoded[1] << 8) | decoded[0];
 
-    board.emit('1-wire-read-reply-' + correlationId, decoded.slice(2));
+  board.emit("1-wire-read-reply-" + correlationId, decoded.slice(2));
 };
 
 /**
@@ -502,28 +513,25 @@ SYSEX_RESPONSE[ONEWIRE_READ_REPLY] = function(board) {
  * @param {Board} board the current arduino board we are working with.
  */
 
-SYSEX_RESPONSE[STRING_DATA] = function (board) {
-    var string = new Buffer(board.currentBuffer.slice(2, -1)).toString('utf8').replace(/\0/g, '');
-    board.emit('string', string);
+SYSEX_RESPONSE[STRING_DATA] = function(board) {
+  var string = new Buffer(board.currentBuffer.slice(2, -1)).toString("utf8").replace(/\0/g, "");
+  board.emit("string", string);
 };
 
 /**
  * Response from pulseIn
  */
 
-SYSEX_RESPONSE[PULSE_IN] = function (board){
-    var pin = (board.currentBuffer[2] & 0x7F) | ((board.currentBuffer[3] & 0x7F) << 7);
-    var durationBuffer = [
-        (board.currentBuffer[4] & 0x7F) | ((board.currentBuffer[5] & 0x7F) << 7),
-        (board.currentBuffer[6] & 0x7F) | ((board.currentBuffer[7] & 0x7F) << 7),
-        (board.currentBuffer[8] & 0x7F) | ((board.currentBuffer[9] & 0x7F) << 7),
-        (board.currentBuffer[10] & 0x7F) | ((board.currentBuffer[11] & 0x7F) << 7)
-    ];
-    var duration = ( (durationBuffer[0] << 24) +
-                     (durationBuffer[1] << 16) +
-                     (durationBuffer[2] << 8) +
-                     (durationBuffer[3] ) );
-    board.emit('pulse-in-'+pin,duration);
+SYSEX_RESPONSE[PULSE_IN] = function(board) {
+  var pin = (board.currentBuffer[2] & 0x7F) | ((board.currentBuffer[3] & 0x7F) << 7);
+  var durationBuffer = [
+    (board.currentBuffer[4] & 0x7F) | ((board.currentBuffer[5] & 0x7F) << 7), (board.currentBuffer[6] & 0x7F) | ((board.currentBuffer[7] & 0x7F) << 7), (board.currentBuffer[8] & 0x7F) | ((board.currentBuffer[9] & 0x7F) << 7), (board.currentBuffer[10] & 0x7F) | ((board.currentBuffer[11] & 0x7F) << 7)
+  ];
+  var duration = ((durationBuffer[0] << 24) +
+    (durationBuffer[1] << 16) +
+    (durationBuffer[2] << 8) +
+    (durationBuffer[3]));
+  board.emit("pulse-in-" + pin, duration);
 };
 
 /**
@@ -531,9 +539,17 @@ SYSEX_RESPONSE[PULSE_IN] = function (board){
  * @param {Board} board
  */
 
-SYSEX_RESPONSE[STEPPER] = function (board) {
-    var deviceNum = board.currentBuffer[2];
-    board.emit('stepper-done-'+deviceNum, true);
+SYSEX_RESPONSE[STEPPER] = function(board) {
+  var deviceNum = board.currentBuffer[2];
+  board.emit("stepper-done-" + deviceNum, true);
+};
+
+var defaults = {
+  reportVersionTimeout: 5000,
+  serialport: {
+    baudRate: 57600,
+    bufferSize: 1
+  }
 };
 
 /**
@@ -553,169 +569,175 @@ SYSEX_RESPONSE[STEPPER] = function (board) {
  * @property {SerialPort} sp The serial port object used to communicate with the arduino.
  */
 var Board = function(port, options, callback) {
-    events.EventEmitter.call(this);
-    if (typeof options === 'function') {
-        callback = options;
-        options = {
-            reportVersionTimeout: 5000
-        };
+  Emitter.call(this);
+
+  if (typeof options === "function" || typeof options === "undefined") {
+    callback = options;
+    options = {};
+  }
+
+  var board = this;
+  var settings = Object.assign({}, defaults, options);
+
+  var ready = function() {
+    this.emit("ready");
+    if (typeof callback === "function") {
+      callback();
     }
-    var board = this;
-    this.MODES = {
-        INPUT: 0x00,
-        OUTPUT: 0x01,
-        ANALOG: 0x02,
-        PWM: 0x03,
-        SERVO: 0x04,
-        SHIFT: 0x05,
-        I2C: 0x06,
-        ONEWIRE: 0x07,
-        STEPPER: 0x08,
-        IGNORE: 0x7F,
-        UNKOWN: 0x10
-    };
+  }.bind(this);
 
-    this.I2C_MODES = {
-        WRITE: 0x00,
-        READ: 1,
-        CONTINUOUS_READ: 2,
-        STOP_READING: 3
-    };
+  this.MODES = {
+    INPUT: 0x00,
+    OUTPUT: 0x01,
+    ANALOG: 0x02,
+    PWM: 0x03,
+    SERVO: 0x04,
+    SHIFT: 0x05,
+    I2C: 0x06,
+    ONEWIRE: 0x07,
+    STEPPER: 0x08,
+    IGNORE: 0x7F,
+    UNKOWN: 0x10
+  };
 
-    this.STEPPER = {
-        TYPE: {
-            DRIVER: 1,
-            TWO_WIRE: 2,
-            FOUR_WIRE: 4
-        },
-        RUNSTATE: {
-            STOP: 0,
-            ACCEL: 1,
-            DECEL: 2,
-            RUN: 3
-        },
-        DIRECTION: {
-            CCW: 0,
-            CW: 1
-        }
-    };
+  this.I2C_MODES = {
+    WRITE: 0x00,
+    READ: 1,
+    CONTINUOUS_READ: 2,
+    STOP_READING: 3
+  };
 
-    this.HIGH = 1;
-    this.LOW = 0;
-    this.pins = [];
-    this.analogPins = [];
-    this.version = {};
-    this.firmware = {};
-    this.currentBuffer = [];
-    this.versionReceived = false;
+  this.STEPPER = {
+    TYPE: {
+      DRIVER: 1,
+      TWO_WIRE: 2,
+      FOUR_WIRE: 4
+    },
+    RUNSTATE: {
+      STOP: 0,
+      ACCEL: 1,
+      DECEL: 2,
+      RUN: 3
+    },
+    DIRECTION: {
+      CCW: 0,
+      CW: 1
+    }
+  };
 
-    if(typeof port === 'object'){
-        this.sp = port;
+  this.HIGH = 1;
+  this.LOW = 0;
+  this.pins = [];
+  this.analogPins = [];
+  this.version = {};
+  this.firmware = {};
+  this.currentBuffer = [];
+  this.versionReceived = false;
+
+  if (typeof port === "object") {
+    this.sp = port;
+  } else {
+    this.sp = new SerialPort(port, settings.serialport);
+  }
+
+  this.sp.on("error", function(string) {
+    if (typeof callback === "function") {
+      callback(string);
+    }
+  });
+
+  this.sp.on("data", function(data) {
+    var byt, cmd;
+
+    if (!this.versionReceived && data[0] !== REPORT_VERSION) {
+      return;
     } else {
-        this.sp = new SerialPort(port, {
-            baudrate: 57600,
-            buffersize: 1
-        });
+      this.versionReceived = true;
     }
 
-    this.sp.on('error', function(string) {
-        if (typeof callback === 'function') {
-            callback(string);
+    for (var i = 0; i < data.length; i++) {
+      byt = data[i];
+      // we dont want to push 0 as the first byte on our buffer
+      if (this.currentBuffer.length === 0 && byt === 0) {
+        continue;
+      } else {
+        this.currentBuffer.push(byt);
+
+        // [START_SYSEX, ... END_SYSEX]
+        if (this.currentBuffer[0] === START_SYSEX &&
+          SYSEX_RESPONSE[this.currentBuffer[1]] &&
+          this.currentBuffer[this.currentBuffer.length - 1] === END_SYSEX) {
+
+          SYSEX_RESPONSE[this.currentBuffer[1]](this);
+          this.currentBuffer.length = 0;
+        } else if (this.currentBuffer[0] !== START_SYSEX) {
+          // Check if data gets out of sync: first byte in buffer
+          // must be a valid command if not START_SYSEX
+          // Identify command on first byte
+          cmd = this.currentBuffer[0] < 240 ? this.currentBuffer[0] & 0xF0 : this.currentBuffer[0];
+
+          // Check if it is not a valid command
+          if (cmd !== REPORT_VERSION && cmd !== ANALOG_MESSAGE && cmd !== DIGITAL_MESSAGE) {
+            // console.log("OUT OF SYNC - CMD: "+cmd);
+            // Clean buffer
+            this.currentBuffer.length = 0;
+          }
         }
-    });
 
-    this.sp.on('data', function(data) {
-        var byt, cmd;
+        // There are 3 bytes in the buffer and the first is not START_SYSEX:
+        // Might have a MIDI Command
+        if (this.currentBuffer.length === 3 && this.currentBuffer[0] !== START_SYSEX) {
+          //commands under 0xF0 we have a multi byte command
+          if (this.currentBuffer[0] < 240) {
+            cmd = this.currentBuffer[0] & 0xF0;
+          } else {
+            cmd = this.currentBuffer[0];
+          }
 
-        if (!board.versionReceived && data[0] !== REPORT_VERSION) {
-            return;
-        } else {
-            board.versionReceived = true;
+          if (MIDI_RESPONSE[cmd]) {
+            MIDI_RESPONSE[cmd](this);
+            this.currentBuffer.length = 0;
+          } else {
+            // A bad serial read must have happened.
+            // Reseting the buffer will allow recovery.
+            this.currentBuffer.length = 0;
+          }
         }
+      }
+    }
+  }.bind(this));
 
-        for (var i = 0; i < data.length; i++) {
-            byt = data[i];
-            // we dont want to push 0 as the first byte on our buffer
-            if (board.currentBuffer.length === 0 && byt === 0) {
-                continue;
-            } else {
-                board.currentBuffer.push(byt);
+  // if we have not received the version within the alotted
+  // time specified by the reportVersionTimeout (user or default),
+  // then send an explicit request for it.
+  this.reportVersionTimeoutId = setTimeout(function() {
+    if (this.versionReceived === false) {
+      this.reportVersion(function() {});
+      this.queryFirmware(function() {});
+    }
+  }.bind(this), settings.reportVersionTimeout);
 
-                // [START_SYSEX, ... END_SYSEX]
-                if (board.currentBuffer[0] === START_SYSEX &&
-                    SYSEX_RESPONSE[board.currentBuffer[1]] &&
-                    board.currentBuffer[board.currentBuffer.length - 1] === END_SYSEX) {
+  // Await the reported version.
+  this.once("reportversion", function() {
+    clearTimeout(this.reportVersionTimeoutId);
+    this.versionReceived = true;
+    this.once("queryfirmware", function() {
 
-                    SYSEX_RESPONSE[board.currentBuffer[1]](board);
-                    board.currentBuffer.length = 0;
-                }
-
-                // Check if data gets out of sync (first byte in buffer must be a valid command if not START_SYSEX)
-                else if (board.currentBuffer[0] !== START_SYSEX) {
-                    // Identify command on first byte
-                    cmd = board.currentBuffer[0] < 240 ? board.currentBuffer[0] & 0xF0 : board.currentBuffer[0];
-
-                    // Check if it is not a valid command
-                    if (cmd !== REPORT_VERSION && cmd !== ANALOG_MESSAGE && cmd !== DIGITAL_MESSAGE) {
-                        // console.log("OUT OF SYNC - CMD: "+cmd);
-                        // Clean buffer
-                        board.currentBuffer.length = 0;
-                    }
-                }
-
-                // There are 3 bytes in the buffer and the first is not START_SYSEX:
-                // Might have a MIDI Command
-                if (board.currentBuffer.length === 3 && board.currentBuffer[0] !== START_SYSEX) {
-                    //commands under 0xF0 we have a multi byte command
-                    if (board.currentBuffer[0] < 240) {
-                        cmd = board.currentBuffer[0] & 0xF0;
-                    } else {
-                        cmd = board.currentBuffer[0];
-                    }
-
-                    if (MIDI_RESPONSE[cmd]) {
-                        MIDI_RESPONSE[cmd](board);
-                        board.currentBuffer.length = 0;
-                    } else {
-                        // A bad serial read must have happened.
-                        // Reseting the buffer will allow recovery.
-                        board.currentBuffer.length = 0;
-                    }
-                }
-            }
-        }
-    });
-    // if we have not received the version in the timeout  ask for it
-    this.reportVersionTimeoutId = setTimeout(function () {
-        if (this.versionReceived === false) {
-            this.reportVersion(function () {});
-            this.queryFirmware(function () {});
-        }
-    }.bind(this), options.reportVersionTimeout);
-    board.once('reportversion', function () {
-        clearTimeout(board.reportVersionTimeoutId);
-        board.versionReceived = true;
-        board.once('queryfirmware', function () {
-            if(options.skipCapabilities) {
-                board.emit('ready');
-                if (typeof callback === 'function') {
-                    callback();
-                }
-                return;
-            }
-            board.queryCapabilities(function() {
-                board.queryAnalogMapping(function() {
-                    board.emit('ready');
-                    if(typeof callback === 'function') {
-                        callback();
-                    }
-                });
-            });
+      if (settings.samplingInterval) {
+        this.setSamplingInterval(settings.samplingInterval);
+      }
+      if (settings.skipCapabilities) {
+        ready();
+      } else {
+        this.queryCapabilities(function() {
+          this.queryAnalogMapping(ready);
         });
+      }
     });
+  });
 };
 
-util.inherits(Board, events.EventEmitter);
+util.inherits(Board, Emitter);
 
 /**
  * Asks the arduino to tell us its version.
@@ -723,8 +745,8 @@ util.inherits(Board, events.EventEmitter);
  */
 
 Board.prototype.reportVersion = function(callback) {
-    this.once('reportversion', callback);
-    this.sp.write(new Buffer([REPORT_VERSION]));
+  this.once("reportversion", callback);
+  this.sp.write(new Buffer([REPORT_VERSION]));
 };
 
 /**
@@ -732,19 +754,20 @@ Board.prototype.reportVersion = function(callback) {
  * @param {function} callback A function to be called when the arduino has reported its firmware version.
  */
 
-Board.prototype.queryFirmware = function (callback) {
-    this.once('queryfirmware', callback);
-    this.sp.write(new Buffer([START_SYSEX, QUERY_FIRMWARE, END_SYSEX]));
+Board.prototype.queryFirmware = function(callback) {
+  this.once("queryfirmware", callback);
+  this.sp.write(new Buffer([START_SYSEX, QUERY_FIRMWARE, END_SYSEX]));
 };
 
 /**
- * Asks the arduino to read analog data.
+ * Asks the arduino to read analog data. Turn on reporting for this pin.
  * @param {number} pin The pin to read analog data
  * @param {function} callback A function to call when we have the analag data.
  */
 
-Board.prototype.analogRead = function (pin, callback) {
-    this.addListener('analog-read-' + pin, callback);
+Board.prototype.analogRead = function(pin, callback) {
+  this.reportAnalogPin(pin, 1);
+  this.addListener("analog-read-" + pin, callback);
 };
 
 /**
@@ -753,36 +776,69 @@ Board.prototype.analogRead = function (pin, callback) {
  * @param {nubmer} value The data to write to the pin between 0 and 255.
  */
 
-Board.prototype.analogWrite = function (pin, value) {
-    var data = [];
+Board.prototype.analogWrite = function(pin, value) {
+  var data = [];
 
-    this.pins[pin].value = value;
+  this.pins[pin].value = value;
 
-    if (pin > 15) {
-        data[0] = START_SYSEX;
-        data[1] = EXTENDED_ANALOG;
-        data[2] = pin;
-        data[3] = value & 0x7F;
-        data[4] = (value >> 7) & 0x7F;
+  if (pin > 15) {
+    data[0] = START_SYSEX;
+    data[1] = EXTENDED_ANALOG;
+    data[2] = pin;
+    data[3] = value & 0x7F;
+    data[4] = (value >> 7) & 0x7F;
 
-        if (value > 0x00004000) {
-            data[data.length] = (value >> 14) & 0x7F;
-        }
-
-        if (value > 0x00200000) {
-            data[data.length] = (value >> 21) & 0x7F;
-        }
-
-        if (value > 0x10000000) {
-            data[data.length] = (value >> 28) & 0x7F;
-        }
-
-        data[data.length] = END_SYSEX;
-    } else {
-        data.push(ANALOG_MESSAGE | pin, value & 0x7F, (value >> 7) & 0x7F);
+    if (value > 0x00004000) {
+      data[data.length] = (value >> 14) & 0x7F;
     }
 
-    this.sp.write(new Buffer(data));
+    if (value > 0x00200000) {
+      data[data.length] = (value >> 21) & 0x7F;
+    }
+
+    if (value > 0x10000000) {
+      data[data.length] = (value >> 28) & 0x7F;
+    }
+
+    data[data.length] = END_SYSEX;
+  } else {
+    data.push(ANALOG_MESSAGE | pin, value & 0x7F, (value >> 7) & 0x7F);
+  }
+
+  this.sp.write(new Buffer(data));
+};
+
+/**
+ * Set a pin to SERVO mode with an explicit PWM range.
+ *
+ * @param {number} pin The pin the servo is connected to
+ * @param {number} min A 14-bit signed int.
+ * @param {number} max A 14-bit signed int.
+ */
+
+Board.prototype.servoConfig = function(pin, min, max) {
+  // [0]  START_SYSEX  (0xF0)
+  // [1]  SERVO_CONFIG (0x70)
+  // [2]  pin number   (0-127)
+  // [3]  minPulse LSB (0-6)
+  // [4]  minPulse MSB (7-13)
+  // [5]  maxPulse LSB (0-6)
+  // [6]  maxPulse MSB (7-13)
+  // [7]  END_SYSEX    (0xF7)
+
+  var data = [
+    START_SYSEX,
+    SERVO_CONFIG,
+    pin,
+    min & 0x7F,
+    (min >> 7) & 0x7F,
+    max & 0x7F,
+    (max >> 7) & 0x7F,
+    END_SYSEX
+  ];
+
+  this.pins[pin].mode = this.MODES.SERVO;
+  this.sp.write(new Buffer(data));
 };
 
 /**
@@ -791,8 +847,10 @@ Board.prototype.analogWrite = function (pin, value) {
  * @param {number} value The degrees to move the servo to.
  */
 
-Board.prototype.servoWrite = function (pin, value) {
-    this.analogWrite.apply(this, arguments);
+Board.prototype.servoWrite = function(pin, value) {
+  // Values less than 544 will be treated as angles in degrees
+  // (valid values in microseconds are handled as microseconds)
+  this.analogWrite.apply(this, arguments);
 };
 
 /**
@@ -801,9 +859,9 @@ Board.prototype.servoWrite = function (pin, value) {
  * @param {number} mode The mode you want to set. Must be one of board.MODES
  */
 
-Board.prototype.pinMode = function (pin, mode) {
-    this.pins[pin].mode = mode;
-    this.sp.write(new Buffer([PIN_MODE, pin, mode]));
+Board.prototype.pinMode = function(pin, mode) {
+  this.pins[pin].mode = mode;
+  this.sp.write(new Buffer([PIN_MODE, pin, mode]));
 };
 
 /**
@@ -812,26 +870,28 @@ Board.prototype.pinMode = function (pin, mode) {
  * @param {value} value The value you want to write. Must be board.HIGH or board.LOW
  */
 
-Board.prototype.digitalWrite = function (pin, value) {
-    var port = Math.floor(pin / 8);
-    var portValue = 0;
-    this.pins[pin].value = value;
-    for (var i = 0; i < 8; i++) {
-        if (this.pins[8 * port + i].value) {
-            portValue |= (1 << i);
-        }
+Board.prototype.digitalWrite = function(pin, value) {
+  var port = Math.floor(pin / 8);
+  var portValue = 0;
+  this.pins[pin].value = value;
+  for (var i = 0; i < 8; i++) {
+    if (this.pins[8 * port + i].value) {
+      portValue |= (1 << i);
     }
-    this.sp.write(new Buffer([DIGITAL_MESSAGE | port, portValue & 0x7F, (portValue >> 7) & 0x7F]));
+  }
+  this.sp.write(new Buffer([DIGITAL_MESSAGE | port, portValue & 0x7F, (portValue >> 7) & 0x7F]));
 };
 
 /**
- * Asks the arduino to read digital data
+ * Asks the arduino to read digital data. Turn on reporting for this pin's port.
+ *
  * @param {number} pin The pin to read data from
  * @param {function} callback The function to call when data has been received
  */
 
-Board.prototype.digitalRead = function (pin, callback) {
-    this.addListener('digital-read-' + pin, callback);
+Board.prototype.digitalRead = function(pin, callback) {
+  this.reportDigitalPin(pin, 1);
+  this.addListener("digital-read-" + pin, callback);
 };
 
 /**
@@ -840,8 +900,8 @@ Board.prototype.digitalRead = function (pin, callback) {
  */
 
 Board.prototype.queryCapabilities = function(callback) {
-    this.once('capability-query', callback);
-    this.sp.write(new Buffer([START_SYSEX, CAPABILITY_QUERY, END_SYSEX]));
+  this.once("capability-query", callback);
+  this.sp.write(new Buffer([START_SYSEX, CAPABILITY_QUERY, END_SYSEX]));
 };
 
 /**
@@ -849,9 +909,9 @@ Board.prototype.queryCapabilities = function(callback) {
  * @param {function} callback A function to call when we receive the pin mappings.
  */
 
-Board.prototype.queryAnalogMapping = function (callback) {
-    this.once('analog-mapping-query', callback);
-    this.sp.write(new Buffer([START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX]));
+Board.prototype.queryAnalogMapping = function(callback) {
+  this.once("analog-mapping-query", callback);
+  this.sp.write(new Buffer([START_SYSEX, ANALOG_MAPPING_QUERY, END_SYSEX]));
 };
 
 /**
@@ -860,9 +920,9 @@ Board.prototype.queryAnalogMapping = function (callback) {
  * @param {function} callback A function to call when we receive the pin state.
  */
 
-Board.prototype.queryPinState = function (pin, callback) {
-    this.once('pin-state-' + pin, callback);
-    this.sp.write(new Buffer([START_SYSEX, PIN_STATE_QUERY, pin, END_SYSEX]));
+Board.prototype.queryPinState = function(pin, callback) {
+  this.once("pin-state-" + pin, callback);
+  this.sp.write(new Buffer([START_SYSEX, PIN_STATE_QUERY, pin, END_SYSEX]));
 };
 
 /**
@@ -872,9 +932,9 @@ Board.prototype.queryPinState = function (pin, callback) {
  * @param {number} delay in microseconds to set for I2C Read
  */
 
-Board.prototype.sendI2CConfig = function(delay){
-    delay = delay || 0;
-    this.sp.write(new Buffer([START_SYSEX,I2C_CONFIG,(delay & 0xFF),((delay >> 8) & 0xFF),END_SYSEX]));
+Board.prototype.sendI2CConfig = function(delay) {
+  delay = delay || 0;
+  this.sp.write(new Buffer([START_SYSEX, I2C_CONFIG, (delay & 0xFF), ((delay >> 8) & 0xFF), END_SYSEX]));
 };
 
 /**
@@ -883,16 +943,16 @@ Board.prototype.sendI2CConfig = function(delay){
  */
 
 Board.prototype.sendString = function(string) {
-    var bytes = new Buffer(string + '\0', 'utf8');
-    var data = [];
-    data.push(START_SYSEX);
-    data.push(STRING_DATA);
-    for (var i = 0, length = bytes.length; i < length; i++) {
-        data.push(bytes[i] & 0x7F);
-        data.push((bytes[i] >> 7) & 0x7F);
-    }
-    data.push(END_SYSEX);
-    this.sp.write(data);
+  var bytes = new Buffer(string + "\0", "utf8");
+  var data = [];
+  data.push(START_SYSEX);
+  data.push(STRING_DATA);
+  for (var i = 0, length = bytes.length; i < length; i++) {
+    data.push(bytes[i] & 0x7F);
+    data.push((bytes[i] >> 7) & 0x7F);
+  }
+  data.push(END_SYSEX);
+  this.sp.write(data);
 };
 
 /**
@@ -901,19 +961,19 @@ Board.prototype.sendString = function(string) {
  * @param {Array} bytes The bytes to send to the device
  */
 
-Board.prototype.sendI2CWriteRequest = function (slaveAddress, bytes) {
-    var data = [];
-    bytes = bytes || [];
-    data.push(START_SYSEX);
-    data.push(I2C_REQUEST);
-    data.push(slaveAddress);
-    data.push(this.I2C_MODES.WRITE << 3);
-    for (var i = 0, length = bytes.length; i < length; i++) {
-        data.push(bytes[i] & 0x7F);
-        data.push((bytes[i] >> 7) & 0x7F);
-    }
-    data.push(END_SYSEX);
-    this.sp.write(new Buffer(data));
+Board.prototype.sendI2CWriteRequest = function(slaveAddress, bytes) {
+  var data = [];
+  bytes = bytes || [];
+  data.push(START_SYSEX);
+  data.push(I2C_REQUEST);
+  data.push(slaveAddress);
+  data.push(this.I2C_MODES.WRITE << 3);
+  for (var i = 0, length = bytes.length; i < length; i++) {
+    data.push(bytes[i] & 0x7F);
+    data.push((bytes[i] >> 7) & 0x7F);
+  }
+  data.push(END_SYSEX);
+  this.sp.write(new Buffer(data));
 };
 
 /**
@@ -923,9 +983,9 @@ Board.prototype.sendI2CWriteRequest = function (slaveAddress, bytes) {
  * @param {function} callback A function to call when we have received the bytes.
  */
 
-Board.prototype.sendI2CReadRequest = function (slaveAddress, numBytes, callback) {
-    this.sp.write(new Buffer([START_SYSEX, I2C_REQUEST, slaveAddress, this.I2C_MODES.READ << 3, numBytes & 0x7F, (numBytes >> 7) & 0x7F, END_SYSEX]));
-    this.once('I2C-reply-' + slaveAddress, callback);
+Board.prototype.sendI2CReadRequest = function(slaveAddress, numBytes, callback) {
+  this.sp.write(new Buffer([START_SYSEX, I2C_REQUEST, slaveAddress, this.I2C_MODES.READ << 3, numBytes & 0x7F, (numBytes >> 7) & 0x7F, END_SYSEX]));
+  this.once("I2C-reply-" + slaveAddress, callback);
 };
 
 /**
@@ -935,7 +995,7 @@ Board.prototype.sendI2CReadRequest = function (slaveAddress, numBytes, callback)
  * @param enableParasiticPower
  */
 Board.prototype.sendOneWireConfig = function(pin, enableParasiticPower) {
-    this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, ONEWIRE_CONFIG_REQUEST, pin, enableParasiticPower ? 0x01 : 0x00, END_SYSEX]));
+  this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, ONEWIRE_CONFIG_REQUEST, pin, enableParasiticPower ? 0x01 : 0x00, END_SYSEX]));
 };
 
 /**
@@ -945,7 +1005,7 @@ Board.prototype.sendOneWireConfig = function(pin, enableParasiticPower) {
  * @param callback
  */
 Board.prototype.sendOneWireSearch = function(pin, callback) {
-    this._sendOneWireSearch(ONEWIRE_SEARCH_REQUEST, '1-wire-search-reply-' + pin, pin, callback);
+  this._sendOneWireSearch(ONEWIRE_SEARCH_REQUEST, "1-wire-search-reply-" + pin, pin, callback);
 };
 
 /**
@@ -955,20 +1015,20 @@ Board.prototype.sendOneWireSearch = function(pin, callback) {
  * @param callback
  */
 Board.prototype.sendOneWireAlarmsSearch = function(pin, callback) {
-    this._sendOneWireSearch(ONEWIRE_SEARCH_ALARMS_REQUEST, '1-wire-search-alarms-reply-' + pin, pin, callback);
+  this._sendOneWireSearch(ONEWIRE_SEARCH_ALARMS_REQUEST, "1-wire-search-alarms-reply-" + pin, pin, callback);
 };
 
 Board.prototype._sendOneWireSearch = function(type, event, pin, callback) {
-    this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, type, pin, END_SYSEX]));
+  this.sp.write(new Buffer([START_SYSEX, ONEWIRE_DATA, type, pin, END_SYSEX]));
 
-    var searchTimeout = setTimeout(function() {
-        callback(new Error("1-Wire device search timeout - are you running ConfigurableFirmata?"));
-    }, 5000);
-    this.once(event, function(devices) {
-        clearTimeout(searchTimeout);
+  var searchTimeout = setTimeout(function() {
+    callback(new Error("1-Wire device search timeout - are you running ConfigurableFirmata?"));
+  }, 5000);
+  this.once(event, function(devices) {
+    clearTimeout(searchTimeout);
 
-        callback(null, devices);
-    });
+    callback(null, devices);
+  });
 };
 
 /**
@@ -981,15 +1041,15 @@ Board.prototype._sendOneWireSearch = function(type, event, pin, callback) {
  * @param callback
  */
 Board.prototype.sendOneWireRead = function(pin, device, numBytesToRead, callback) {
-    var correlationId = Math.floor(Math.random() * 255);
-    var readTimeout = setTimeout(function() {
-        callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
-    }, 5000);
-    this._sendOneWireRequest(pin, ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, null, '1-wire-read-reply-' + correlationId, function(data) {
-        clearTimeout(readTimeout);
+  var correlationId = Math.floor(Math.random() * 255);
+  var readTimeout = setTimeout(function() {
+    callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
+  }, 5000);
+  this._sendOneWireRequest(pin, ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, null, "1-wire-read-reply-" + correlationId, function(data) {
+    clearTimeout(readTimeout);
 
-        callback(null, data);
-    });
+    callback(null, data);
+  });
 };
 
 /**
@@ -997,7 +1057,7 @@ Board.prototype.sendOneWireRead = function(pin, device, numBytesToRead, callback
  * @param pin
  */
 Board.prototype.sendOneWireReset = function(pin) {
-    this._sendOneWireRequest(pin, ONEWIRE_RESET_REQUEST_BIT);
+  this._sendOneWireRequest(pin, ONEWIRE_RESET_REQUEST_BIT);
 };
 
 /**
@@ -1010,7 +1070,7 @@ Board.prototype.sendOneWireReset = function(pin) {
  * @param data
  */
 Board.prototype.sendOneWireWrite = function(pin, device, data) {
-    this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT, device, null, null, null, Array.isArray(data) ? data : [data]);
+  this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT, device, null, null, null, Array.isArray(data) ? data : [data]);
 };
 
 /**
@@ -1019,7 +1079,7 @@ Board.prototype.sendOneWireWrite = function(pin, device, data) {
  * @param pin
  */
 Board.prototype.sendOneWireDelay = function(pin, delay) {
-    this._sendOneWireRequest(pin, ONEWIRE_DELAY_REQUEST_BIT, null, null, null, delay);
+  this._sendOneWireRequest(pin, ONEWIRE_DELAY_REQUEST_BIT, null, null, null, delay);
 };
 
 /**
@@ -1034,61 +1094,61 @@ Board.prototype.sendOneWireDelay = function(pin, delay) {
  * @param callback
  */
 Board.prototype.sendOneWireWriteAndRead = function(pin, device, data, numBytesToRead, callback) {
-    var correlationId = Math.floor(Math.random() * 255);
-    var readTimeout = setTimeout(function() {
-        callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
-    }, 5000);
-    this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT | ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, Array.isArray(data) ? data : [data], '1-wire-read-reply-' + correlationId, function(data) {
-        clearTimeout(readTimeout);
+  var correlationId = Math.floor(Math.random() * 255);
+  var readTimeout = setTimeout(function() {
+    callback(new Error("1-Wire device read timeout - are you running ConfigurableFirmata?"));
+  }, 5000);
+  this._sendOneWireRequest(pin, ONEWIRE_WRITE_REQUEST_BIT | ONEWIRE_READ_REQUEST_BIT, device, numBytesToRead, correlationId, null, Array.isArray(data) ? data : [data], "1-wire-read-reply-" + correlationId, function(data) {
+    clearTimeout(readTimeout);
 
-        callback(null, data);
-    });
+    callback(null, data);
+  });
 };
 
 // see http://firmata.org/wiki/Proposals#OneWire_Proposal
 Board.prototype._sendOneWireRequest = function(pin, subcommand, device, numBytesToRead, correlationId, delay, dataToWrite, event, callback) {
-    var bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  var bytes = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
-    if(device || numBytesToRead || correlationId || delay || dataToWrite) {
-        subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
-    }
+  if (device || numBytesToRead || correlationId || delay || dataToWrite) {
+    subcommand = subcommand | ONEWIRE_WITHDATA_REQUEST_BITS;
+  }
 
-    if(device) {
-        bytes.splice.apply(bytes, [0, 8].concat(device));
-    }
+  if (device) {
+    bytes.splice.apply(bytes, [0, 8].concat(device));
+  }
 
-    if(numBytesToRead) {
-        bytes[8] = numBytesToRead & 0xFF;
-        bytes[9] = (numBytesToRead >> 8) & 0xFF;
-    }
+  if (numBytesToRead) {
+    bytes[8] = numBytesToRead & 0xFF;
+    bytes[9] = (numBytesToRead >> 8) & 0xFF;
+  }
 
-    if(correlationId) {
-        bytes[10] = correlationId & 0xFF;
-        bytes[11] = (correlationId >> 8) & 0xFF;
-    }
+  if (correlationId) {
+    bytes[10] = correlationId & 0xFF;
+    bytes[11] = (correlationId >> 8) & 0xFF;
+  }
 
-    if(delay) {
-        bytes[12] = delay & 0xFF;
-        bytes[13] = (delay >> 8) & 0xFF;
-        bytes[14] = (delay >> 16) & 0xFF;
-        bytes[15] = (delay >> 24) & 0xFF;
-    }
+  if (delay) {
+    bytes[12] = delay & 0xFF;
+    bytes[13] = (delay >> 8) & 0xFF;
+    bytes[14] = (delay >> 16) & 0xFF;
+    bytes[15] = (delay >> 24) & 0xFF;
+  }
 
-    if(dataToWrite) {
-        dataToWrite.forEach(function(byte) {
-            bytes.push(byte);
-        });
-    }
+  if (dataToWrite) {
+    dataToWrite.forEach(function(byte) {
+      bytes.push(byte);
+    });
+  }
 
-    var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
-    output = output.concat(Encoder7Bit.to7BitArray(bytes));
-    output.push(END_SYSEX);
+  var output = [START_SYSEX, ONEWIRE_DATA, subcommand, pin];
+  output = output.concat(Encoder7Bit.to7BitArray(bytes));
+  output.push(END_SYSEX);
 
-    this.sp.write(new Buffer(output));
+  this.sp.write(new Buffer(output));
 
-    if(event && callback) {
-        this.once(event, callback);
-    }
+  if (event && callback) {
+    this.once(event, callback);
+  }
 };
 
 /**
@@ -1096,9 +1156,9 @@ Board.prototype._sendOneWireRequest = function(pin, subcommand, device, numBytes
  * @param {number} interval The sampling interval in ms > 10
  */
 
-Board.prototype.setSamplingInterval = function (interval) {
-    var safeint = interval < 10 ? 10 : (interval > 65535 ? 65535 : interval); // constrained
-    this.sp.write(new Buffer([START_SYSEX, SAMPLING_INTERVAL, (safeint & 0xFF),((safeint >> 8) & 0xFF), END_SYSEX]));
+Board.prototype.setSamplingInterval = function(interval) {
+  var safeint = interval < 10 ? 10 : (interval > 65535 ? 65535 : interval); // constrained
+  this.sp.write(new Buffer([START_SYSEX, SAMPLING_INTERVAL, (safeint & 0xFF), ((safeint >> 8) & 0xFF), END_SYSEX]));
 };
 
 /**
@@ -1107,11 +1167,11 @@ Board.prototype.setSamplingInterval = function (interval) {
  * @param {number} value Binary value to turn reporting on/off
  */
 
-Board.prototype.reportAnalogPin = function (pin, value) {
-    if(value === 0 || value === 1) {
-        this.pins[this.analogPins[pin]].report = value;
-        this.sp.write(new Buffer([REPORT_ANALOG | pin, value]));
-    }
+Board.prototype.reportAnalogPin = function(pin, value) {
+  if (value === 0 || value === 1) {
+    this.pins[this.analogPins[pin]].report = value;
+    this.sp.write(new Buffer([REPORT_ANALOG | pin, value]));
+  }
 };
 
 /**
@@ -1120,11 +1180,12 @@ Board.prototype.reportAnalogPin = function (pin, value) {
  * @param {number} value Binary value to turn reporting on/off
  */
 
-Board.prototype.reportDigitalPin = function (pin, value) {
-    if(value === 0 || value === 1) {
-        this.pins[pin].report = value;
-        this.sp.write(new Buffer([REPORT_DIGITAL | pin, value]));
-    }
+Board.prototype.reportDigitalPin = function(pin, value) {
+  var port = Math.floor(pin / 8);
+  if (value === 0 || value === 1) {
+    this.pins[pin].report = value;
+    this.sp.write(new Buffer([REPORT_DIGITAL | port, value]));
+  }
 };
 
 /**
@@ -1132,52 +1193,38 @@ Board.prototype.reportDigitalPin = function (pin, value) {
  *
  */
 
-Board.prototype.pulseIn = function (opts, callback) {
-    var pin = opts.pin;
-    var value = opts.value;
-    var pulseOut = opts.pulseOut || 0;
-    var timeout = opts.timeout || 1000000;
-    var pulseOutArray = [
-        ((pulseOut >> 24) & 0xFF),
-        ((pulseOut >> 16) & 0xFF),
-        ((pulseOut >> 8) & 0XFF),
-        ((pulseOut & 0xFF))
-    ];
-    var timeoutArray = [
-        ((timeout >> 24) & 0xFF),
-        ((timeout >> 16) & 0xFF),
-        ((timeout >> 8) & 0XFF),
-        ((timeout & 0xFF))
-    ];
-    var data = [
-        START_SYSEX,
-        PULSE_IN,
-        pin,
-        value,
-        pulseOutArray[0] & 0x7F,
-        (pulseOutArray[0] >> 7) & 0x7F,
-        pulseOutArray[1] & 0x7F,
-        (pulseOutArray[1] >> 7) & 0x7F,
-        pulseOutArray[2] & 0x7F,
-        (pulseOutArray[2] >> 7) & 0x7F,
-        pulseOutArray[3] & 0x7F,
-        (pulseOutArray[3] >> 7) & 0x7F,
-        timeoutArray[0] & 0x7F,
-        (timeoutArray[0] >> 7) & 0x7F,
-        timeoutArray[1] & 0x7F,
-        (timeoutArray[1] >> 7) & 0x7F,
-        timeoutArray[2] & 0x7F,
-        (timeoutArray[2] >> 7) & 0x7F,
-        timeoutArray[3] & 0x7F,
-        (timeoutArray[3] >> 7) & 0x7F,
-        END_SYSEX
-    ];
-    this.sp.write(new Buffer(data));
-    this.once('pulse-in-' + pin,callback);
+Board.prototype.pulseIn = function(opts, callback) {
+  var pin = opts.pin;
+  var value = opts.value;
+  var pulseOut = opts.pulseOut || 0;
+  var timeout = opts.timeout || 1000000;
+  var pulseOutArray = [
+    ((pulseOut >> 24) & 0xFF), ((pulseOut >> 16) & 0xFF), ((pulseOut >> 8) & 0XFF), ((pulseOut & 0xFF))
+  ];
+  var timeoutArray = [
+    ((timeout >> 24) & 0xFF), ((timeout >> 16) & 0xFF), ((timeout >> 8) & 0XFF), ((timeout & 0xFF))
+  ];
+  var data = [
+    START_SYSEX,
+    PULSE_IN,
+    pin,
+    value,
+    pulseOutArray[0] & 0x7F, (pulseOutArray[0] >> 7) & 0x7F,
+    pulseOutArray[1] & 0x7F, (pulseOutArray[1] >> 7) & 0x7F,
+    pulseOutArray[2] & 0x7F, (pulseOutArray[2] >> 7) & 0x7F,
+    pulseOutArray[3] & 0x7F, (pulseOutArray[3] >> 7) & 0x7F,
+    timeoutArray[0] & 0x7F, (timeoutArray[0] >> 7) & 0x7F,
+    timeoutArray[1] & 0x7F, (timeoutArray[1] >> 7) & 0x7F,
+    timeoutArray[2] & 0x7F, (timeoutArray[2] >> 7) & 0x7F,
+    timeoutArray[3] & 0x7F, (timeoutArray[3] >> 7) & 0x7F,
+    END_SYSEX
+  ];
+  this.sp.write(new Buffer(data));
+  this.once("pulse-in-" + pin, callback);
 };
 
 /**
- * Stepper functions to support AdvancedFirmata's asynchronous control of stepper motors
+ * Stepper functions to support AdvancedFirmata"s asynchronous control of stepper motors
  * https://github.com/soundanalogous/AdvancedFirmata
  */
 
@@ -1192,23 +1239,22 @@ Board.prototype.pulseIn = function (opts, callback) {
  * @param {number} [motor4Pin] Only required if type == this.STEPPER.TYPE.FOUR_WIRE
  */
 
-Board.prototype.stepperConfig = function (deviceNum, type, stepsPerRev, dirOrMotor1Pin, stepOrMotor2Pin, motor3Pin, motor4Pin) {
-    var data = [
-        START_SYSEX,
-        STEPPER,
-        0x00,       // STEPPER_CONFIG from firmware
-        deviceNum,
-        type,
-        stepsPerRev & 0x7F,
-        (stepsPerRev >> 7) & 0x7F,
-        dirOrMotor1Pin,
-        stepOrMotor2Pin
-    ];
-    if(type === this.STEPPER.TYPE.FOUR_WIRE) {
-        data.push(motor3Pin, motor4Pin);
-    }
-    data.push(END_SYSEX);
-    this.sp.write(new Buffer(data));
+Board.prototype.stepperConfig = function(deviceNum, type, stepsPerRev, dirOrMotor1Pin, stepOrMotor2Pin, motor3Pin, motor4Pin) {
+  var data = [
+    START_SYSEX,
+    STEPPER,
+    0x00, // STEPPER_CONFIG from firmware
+    deviceNum,
+    type,
+    stepsPerRev & 0x7F, (stepsPerRev >> 7) & 0x7F,
+    dirOrMotor1Pin,
+    stepOrMotor2Pin
+  ];
+  if (type === this.STEPPER.TYPE.FOUR_WIRE) {
+    data.push(motor3Pin, motor4Pin);
+  }
+  data.push(END_SYSEX);
+  this.sp.write(new Buffer(data));
 };
 
 /**
@@ -1226,99 +1272,94 @@ Board.prototype.stepperConfig = function (deviceNum, type, stepsPerRev, dirOrMot
  * @param {function} [callback]
  */
 
-Board.prototype.stepperStep = function (deviceNum, direction, steps, speed, accel, decel, callback) {
-    if (typeof accel === 'function') {
-        callback = accel;
-        accel = 0;
-        decel = 0;
-    }
+Board.prototype.stepperStep = function(deviceNum, direction, steps, speed, accel, decel, callback) {
+  if (typeof accel === "function") {
+    callback = accel;
+    accel = 0;
+    decel = 0;
+  }
 
-    var data = [
-        START_SYSEX,
-        STEPPER,
-        0x01,       // STEPPER_STEP from firmware
-        deviceNum,
-        direction,  // one of this.STEPPER.DIRECTION.*
-        steps & 0x7F,
-        (steps >> 7) & 0x7F,
-        (steps >> 14) & 0x7f,
-        speed & 0x7F,
-        (speed >> 7) & 0x7F
-    ];
-    if(accel > 0 || decel > 0) {
-        data.push(
-            accel & 0x7F,
-            (accel >> 7) & 0x7F,
-            decel & 0x7F,
-            (decel >> 7) & 0x7F
-        );
-    }
-    data.push(END_SYSEX);
-    this.sp.write(new Buffer(data));
-    this.once('stepper-done-'+deviceNum, callback);
+  var data = [
+    START_SYSEX,
+    STEPPER,
+    0x01, // STEPPER_STEP from firmware
+    deviceNum,
+    direction, // one of this.STEPPER.DIRECTION.*
+    steps & 0x7F, (steps >> 7) & 0x7F, (steps >> 14) & 0x7f,
+    speed & 0x7F, (speed >> 7) & 0x7F
+  ];
+  if (accel > 0 || decel > 0) {
+    data.push(
+      accel & 0x7F, (accel >> 7) & 0x7F,
+      decel & 0x7F, (decel >> 7) & 0x7F
+    );
+  }
+  data.push(END_SYSEX);
+  this.sp.write(new Buffer(data));
+  this.once("stepper-done-" + deviceNum, callback);
 };
 
 /**
  * Send SYSTEM_RESET to arduino
  */
 
-Board.prototype.reset = function () {
-    this.sp.write(new Buffer([SYSTEM_RESET]));
+Board.prototype.reset = function() {
+  this.sp.write(new Buffer([SYSTEM_RESET]));
 };
 
 module.exports = {
-    Board: Board,
-    SYSEX_RESPONSE: SYSEX_RESPONSE,
-    MIDI_RESPONSE: MIDI_RESPONSE
+  Board: Board,
+  SYSEX_RESPONSE: SYSEX_RESPONSE,
+  MIDI_RESPONSE: MIDI_RESPONSE
 };
 
-}).call(this,require("buffer").Buffer)
-},{"./encoder7bit":3,"./onewireutils":5,"browser-serialport":6,"buffer":139,"events":157,"serialport":21,"util":186}],5:[function(require,module,exports){
-var Encoder7Bit = require('./encoder7bit');
+}).call(this,require('_process'),require("buffer").Buffer)
+},{"./encoder7bit":3,"./onewireutils":5,"_process":167,"browser-serialport":6,"buffer":140,"es6-shim":7,"events":158,"serialport":22,"util":187}],5:[function(require,module,exports){
+var Encoder7Bit = require("./encoder7bit");
 
-OneWireUtils = {
-    crc8: function(data) {
-        var crc = 0;
+var OneWireUtils = {
+  crc8: function(data) {
+    var crc = 0;
 
-        for(var i = 0; i < data.length; i++) {
-            var inbyte = data[i];
+    for (var i = 0; i < data.length; i++) {
+      var inbyte = data[i];
 
-            for (var n = 8; n; n--) {
-                var mix = (crc ^ inbyte) & 0x01;
-                crc >>= 1;
+      for (var n = 8; n; n--) {
+        var mix = (crc ^ inbyte) & 0x01;
+        crc >>= 1;
 
-                if (mix) {
-                    crc ^= 0x8C;
-                }
-
-                inbyte >>= 1;
-            }
-        }
-        return crc;
-    },
-
-    readDevices: function(data) {
-        var deviceBytes = Encoder7Bit.from7BitArray(data);
-        var devices = [];
-
-        for(var i = 0; i < deviceBytes.length; i += 8) {
-            var device = deviceBytes.slice(i, i + 8);
-
-			if(device.length != 8) {
-				continue;
-			}
-
-            var check = OneWireUtils.crc8(device.slice(0, 7));
-
-            if(check != device[7]) {
-                console.error("ROM invalid!");
-            }
-
-            devices.push(device);
+        if (mix) {
+          crc ^= 0x8C;
         }
 
-        return devices;
+        inbyte >>= 1;
+      }
     }
+    return crc;
+  },
+
+  readDevices: function(data) {
+    var deviceBytes = Encoder7Bit.from7BitArray(data);
+    var devices = [];
+
+    for (var i = 0; i < deviceBytes.length; i += 8) {
+      var device = deviceBytes.slice(i, i + 8);
+
+      if (device.length !== 8) {
+        continue;
+      }
+
+      var check = OneWireUtils.crc8(device.slice(0, 7));
+
+      if (check !== device[7]) {
+        console.error("ROM invalid!");
+      }
+
+      devices.push(device);
+    }
+
+    return devices;
+  }
 };
 
 module.exports = OneWireUtils;
@@ -1520,6 +1561,2005 @@ module.exports = {
 };
 
 },{}],7:[function(require,module,exports){
+(function (process){
+ /*!
+  * https://github.com/paulmillr/es6-shim
+  * @license es6-shim Copyright 2013-2014 by Paul Miller (http://paulmillr.com)
+  *   and contributors,  MIT License
+  * es6-shim: v0.20.2
+  * see https://github.com/paulmillr/es6-shim/blob/master/LICENSE
+  * Details and documentation:
+  * https://github.com/paulmillr/es6-shim/
+  */
+
+// UMD (Universal Module Definition)
+// see https://github.com/umdjs/umd/blob/master/returnExports.js
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    // AMD. Register as an anonymous module.
+    define(factory);
+  } else if (typeof exports === 'object') {
+    // Node. Does not work with strict CommonJS, but
+    // only CommonJS-like enviroments that support module.exports,
+    // like Node.
+    module.exports = factory();
+  } else {
+    // Browser globals (root is window)
+    root.returnExports = factory();
+  }
+}(this, function () {
+  'use strict';
+
+  var isCallableWithoutNew = function (func) {
+    try { func(); }
+    catch (e) { return false; }
+    return true;
+  };
+
+  var supportsSubclassing = function (C, f) {
+    /* jshint proto:true */
+    try {
+      var Sub = function () { C.apply(this, arguments); };
+      if (!Sub.__proto__) { return false; /* skip test on IE < 11 */ }
+      Object.setPrototypeOf(Sub, C);
+      Sub.prototype = Object.create(C.prototype, {
+        constructor: { value: C }
+      });
+      return f(Sub);
+    } catch (e) {
+      return false;
+    }
+  };
+
+  var arePropertyDescriptorsSupported = function () {
+    try {
+      Object.defineProperty({}, 'x', {});
+      return true;
+    } catch (e) { /* this is IE 8. */
+      return false;
+    }
+  };
+
+  var startsWithRejectsRegex = function () {
+    var rejectsRegex = false;
+    if (String.prototype.startsWith) {
+      try {
+        '/a/'.startsWith(/a/);
+      } catch (e) { /* this is spec compliant */
+        rejectsRegex = true;
+      }
+    }
+    return rejectsRegex;
+  };
+
+  /*jshint evil: true */
+  var getGlobal = new Function('return this;');
+  /*jshint evil: false */
+
+  var globals = getGlobal();
+  var global_isFinite = globals.isFinite;
+  var supportsDescriptors = !!Object.defineProperty && arePropertyDescriptorsSupported();
+  var startsWithIsCompliant = startsWithRejectsRegex();
+  var _slice = Array.prototype.slice;
+  var _indexOf = String.prototype.indexOf;
+  var _toString = Object.prototype.toString;
+  var _hasOwnProperty = Object.prototype.hasOwnProperty;
+  var ArrayIterator; // make our implementation private
+
+  var defineProperty = function (object, name, value, force) {
+    if (!force && name in object) { return; }
+    if (supportsDescriptors) {
+      Object.defineProperty(object, name, {
+        configurable: true,
+        enumerable: false,
+        writable: true,
+        value: value
+      });
+    } else {
+      object[name] = value;
+    }
+  };
+
+  // Define configurable, writable and non-enumerable props
+  // if they don’t exist.
+  var defineProperties = function (object, map) {
+    Object.keys(map).forEach(function (name) {
+      var method = map[name];
+      defineProperty(object, name, method, false);
+    });
+  };
+
+  // Simple shim for Object.create on ES3 browsers
+  // (unlike real shim, no attempt to support `prototype === null`)
+  var create = Object.create || function (prototype, properties) {
+    function Type() {}
+    Type.prototype = prototype;
+    var object = new Type();
+    if (typeof properties !== 'undefined') {
+      defineProperties(object, properties);
+    }
+    return object;
+  };
+
+  // This is a private name in the es6 spec, equal to '[Symbol.iterator]'
+  // we're going to use an arbitrary _-prefixed name to make our shims
+  // work properly with each other, even though we don't have full Iterator
+  // support.  That is, `Array.from(map.keys())` will work, but we don't
+  // pretend to export a "real" Iterator interface.
+  var $iterator$ = (typeof Symbol === 'function' && Symbol.iterator) ||
+    '_es6shim_iterator_';
+  // Firefox ships a partial implementation using the name @@iterator.
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=907077#c14
+  // So use that name if we detect it.
+  if (globals.Set && typeof new globals.Set()['@@iterator'] === 'function') {
+    $iterator$ = '@@iterator';
+  }
+  var addIterator = function (prototype, impl) {
+    if (!impl) { impl = function iterator() { return this; }; }
+    var o = {};
+    o[$iterator$] = impl;
+    defineProperties(prototype, o);
+    /* jshint notypeof: true */
+    if (!prototype[$iterator$] && typeof $iterator$ === 'symbol') {
+      // implementations are buggy when $iterator$ is a Symbol
+      prototype[$iterator$] = impl;
+    }
+  };
+
+  // taken directly from https://github.com/ljharb/is-arguments/blob/master/index.js
+  // can be replaced with require('is-arguments') if we ever use a build process instead
+  var isArguments = function isArguments(value) {
+    var str = _toString.call(value);
+    var result = str === '[object Arguments]';
+    if (!result) {
+      result = str !== '[object Array]' &&
+        value !== null &&
+        typeof value === 'object' &&
+        typeof value.length === 'number' &&
+        value.length >= 0 &&
+        _toString.call(value.callee) === '[object Function]';
+    }
+    return result;
+  };
+
+  var emulateES6construct = function (o) {
+    if (!ES.TypeIsObject(o)) { throw new TypeError('bad object'); }
+    // es5 approximation to es6 subclass semantics: in es6, 'new Foo'
+    // would invoke Foo.@@create to allocation/initialize the new object.
+    // In es5 we just get the plain object.  So if we detect an
+    // uninitialized object, invoke o.constructor.@@create
+    if (!o._es6construct) {
+      if (o.constructor && ES.IsCallable(o.constructor['@@create'])) {
+        o = o.constructor['@@create'](o);
+      }
+      defineProperties(o, { _es6construct: true });
+    }
+    return o;
+  };
+
+  var ES = {
+    CheckObjectCoercible: function (x, optMessage) {
+      /* jshint eqnull:true */
+      if (x == null) {
+        throw new TypeError(optMessage || 'Cannot call method on ' + x);
+      }
+      return x;
+    },
+
+    TypeIsObject: function (x) {
+      /* jshint eqnull:true */
+      // this is expensive when it returns false; use this function
+      // when you expect it to return true in the common case.
+      return x != null && Object(x) === x;
+    },
+
+    ToObject: function (o, optMessage) {
+      return Object(ES.CheckObjectCoercible(o, optMessage));
+    },
+
+    IsCallable: function (x) {
+      return typeof x === 'function' &&
+        // some versions of IE say that typeof /abc/ === 'function'
+        _toString.call(x) === '[object Function]';
+    },
+
+    ToInt32: function (x) {
+      return x >> 0;
+    },
+
+    ToUint32: function (x) {
+      return x >>> 0;
+    },
+
+    ToInteger: function (value) {
+      var number = +value;
+      if (Number.isNaN(number)) { return 0; }
+      if (number === 0 || !Number.isFinite(number)) { return number; }
+      return (number > 0 ? 1 : -1) * Math.floor(Math.abs(number));
+    },
+
+    ToLength: function (value) {
+      var len = ES.ToInteger(value);
+      if (len <= 0) { return 0; } // includes converting -0 to +0
+      if (len > Number.MAX_SAFE_INTEGER) { return Number.MAX_SAFE_INTEGER; }
+      return len;
+    },
+
+    SameValue: function (a, b) {
+      if (a === b) {
+        // 0 === -0, but they are not identical.
+        if (a === 0) { return 1 / a === 1 / b; }
+        return true;
+      }
+      return Number.isNaN(a) && Number.isNaN(b);
+    },
+
+    SameValueZero: function (a, b) {
+      // same as SameValue except for SameValueZero(+0, -0) == true
+      return (a === b) || (Number.isNaN(a) && Number.isNaN(b));
+    },
+
+    IsIterable: function (o) {
+      return ES.TypeIsObject(o) &&
+        (typeof o[$iterator$] !== 'undefined' || isArguments(o));
+    },
+
+    GetIterator: function (o) {
+      if (isArguments(o)) {
+        // special case support for `arguments`
+        return new ArrayIterator(o, 'value');
+      }
+      var it = o[$iterator$]();
+      if (!ES.TypeIsObject(it)) {
+        throw new TypeError('bad iterator');
+      }
+      return it;
+    },
+
+    IteratorNext: function (it) {
+      var result = arguments.length > 1 ? it.next(arguments[1]) : it.next();
+      if (!ES.TypeIsObject(result)) {
+        throw new TypeError('bad iterator');
+      }
+      return result;
+    },
+
+    Construct: function (C, args) {
+      // CreateFromConstructor
+      var obj;
+      if (ES.IsCallable(C['@@create'])) {
+        obj = C['@@create']();
+      } else {
+        // OrdinaryCreateFromConstructor
+        obj = create(C.prototype || null);
+      }
+      // Mark that we've used the es6 construct path
+      // (see emulateES6construct)
+      defineProperties(obj, { _es6construct: true });
+      // Call the constructor.
+      var result = C.apply(obj, args);
+      return ES.TypeIsObject(result) ? result : obj;
+    }
+  };
+
+  var numberConversion = (function () {
+    // from https://github.com/inexorabletash/polyfill/blob/master/typedarray.js#L176-L266
+    // with permission and license, per https://twitter.com/inexorabletash/status/372206509540659200
+
+    function roundToEven(n) {
+      var w = Math.floor(n), f = n - w;
+      if (f < 0.5) {
+        return w;
+      }
+      if (f > 0.5) {
+        return w + 1;
+      }
+      return w % 2 ? w + 1 : w;
+    }
+
+    function packIEEE754(v, ebits, fbits) {
+      var bias = (1 << (ebits - 1)) - 1,
+        s, e, f, ln,
+        i, bits, str, bytes;
+
+      // Compute sign, exponent, fraction
+      if (v !== v) {
+        // NaN
+        // http://dev.w3.org/2006/webapi/WebIDL/#es-type-mapping
+        e = (1 << ebits) - 1;
+        f = Math.pow(2, fbits - 1);
+        s = 0;
+      } else if (v === Infinity || v === -Infinity) {
+        e = (1 << ebits) - 1;
+        f = 0;
+        s = (v < 0) ? 1 : 0;
+      } else if (v === 0) {
+        e = 0;
+        f = 0;
+        s = (1 / v === -Infinity) ? 1 : 0;
+      } else {
+        s = v < 0;
+        v = Math.abs(v);
+
+        if (v >= Math.pow(2, 1 - bias)) {
+          e = Math.min(Math.floor(Math.log(v) / Math.LN2), 1023);
+          f = roundToEven(v / Math.pow(2, e) * Math.pow(2, fbits));
+          if (f / Math.pow(2, fbits) >= 2) {
+            e = e + 1;
+            f = 1;
+          }
+          if (e > bias) {
+            // Overflow
+            e = (1 << ebits) - 1;
+            f = 0;
+          } else {
+            // Normal
+            e = e + bias;
+            f = f - Math.pow(2, fbits);
+          }
+        } else {
+          // Subnormal
+          e = 0;
+          f = roundToEven(v / Math.pow(2, 1 - bias - fbits));
+        }
+      }
+
+      // Pack sign, exponent, fraction
+      bits = [];
+      for (i = fbits; i; i -= 1) {
+        bits.push(f % 2 ? 1 : 0);
+        f = Math.floor(f / 2);
+      }
+      for (i = ebits; i; i -= 1) {
+        bits.push(e % 2 ? 1 : 0);
+        e = Math.floor(e / 2);
+      }
+      bits.push(s ? 1 : 0);
+      bits.reverse();
+      str = bits.join('');
+
+      // Bits to bytes
+      bytes = [];
+      while (str.length) {
+        bytes.push(parseInt(str.slice(0, 8), 2));
+        str = str.slice(8);
+      }
+      return bytes;
+    }
+
+    function unpackIEEE754(bytes, ebits, fbits) {
+      // Bytes to bits
+      var bits = [], i, j, b, str,
+          bias, s, e, f;
+
+      for (i = bytes.length; i; i -= 1) {
+        b = bytes[i - 1];
+        for (j = 8; j; j -= 1) {
+          bits.push(b % 2 ? 1 : 0);
+          b = b >> 1;
+        }
+      }
+      bits.reverse();
+      str = bits.join('');
+
+      // Unpack sign, exponent, fraction
+      bias = (1 << (ebits - 1)) - 1;
+      s = parseInt(str.slice(0, 1), 2) ? -1 : 1;
+      e = parseInt(str.slice(1, 1 + ebits), 2);
+      f = parseInt(str.slice(1 + ebits), 2);
+
+      // Produce number
+      if (e === (1 << ebits) - 1) {
+        return f !== 0 ? NaN : s * Infinity;
+      } else if (e > 0) {
+        // Normalized
+        return s * Math.pow(2, e - bias) * (1 + f / Math.pow(2, fbits));
+      } else if (f !== 0) {
+        // Denormalized
+        return s * Math.pow(2, -(bias - 1)) * (f / Math.pow(2, fbits));
+      } else {
+        return s < 0 ? -0 : 0;
+      }
+    }
+
+    function unpackFloat64(b) { return unpackIEEE754(b, 11, 52); }
+    function packFloat64(v) { return packIEEE754(v, 11, 52); }
+    function unpackFloat32(b) { return unpackIEEE754(b, 8, 23); }
+    function packFloat32(v) { return packIEEE754(v, 8, 23); }
+
+    var conversions = {
+      toFloat32: function (num) { return unpackFloat32(packFloat32(num)); }
+    };
+    if (typeof Float32Array !== 'undefined') {
+      var float32array = new Float32Array(1);
+      conversions.toFloat32 = function (num) {
+        float32array[0] = num;
+        return float32array[0];
+      };
+    }
+    return conversions;
+  }());
+
+  defineProperties(String, {
+    fromCodePoint: function (_) { // length = 1
+      var points = _slice.call(arguments, 0, arguments.length);
+      var result = [];
+      var next;
+      for (var i = 0, length = points.length; i < length; i++) {
+        next = Number(points[i]);
+        if (!ES.SameValue(next, ES.ToInteger(next)) ||
+            next < 0 || next > 0x10FFFF) {
+          throw new RangeError('Invalid code point ' + next);
+        }
+
+        if (next < 0x10000) {
+          result.push(String.fromCharCode(next));
+        } else {
+          next -= 0x10000;
+          result.push(String.fromCharCode((next >> 10) + 0xD800));
+          result.push(String.fromCharCode((next % 0x400) + 0xDC00));
+        }
+      }
+      return result.join('');
+    },
+
+    raw: function (callSite) { // raw.length===1
+      var substitutions = _slice.call(arguments, 1, arguments.length);
+      var cooked = ES.ToObject(callSite, 'bad callSite');
+      var rawValue = cooked.raw;
+      var raw = ES.ToObject(rawValue, 'bad raw value');
+      var len = Object.keys(raw).length;
+      var literalsegments = ES.ToLength(len);
+      if (literalsegments === 0) {
+        return '';
+      }
+
+      var stringElements = [];
+      var nextIndex = 0;
+      var nextKey, next, nextSeg, nextSub;
+      while (nextIndex < literalsegments) {
+        nextKey = String(nextIndex);
+        next = raw[nextKey];
+        nextSeg = String(next);
+        stringElements.push(nextSeg);
+        if (nextIndex + 1 >= literalsegments) {
+          break;
+        }
+        next = substitutions[nextKey];
+        if (typeof next === 'undefined') {
+          break;
+        }
+        nextSub = String(next);
+        stringElements.push(nextSub);
+        nextIndex++;
+      }
+      return stringElements.join('');
+    }
+  });
+
+  // Firefox 31 reports this function's length as 0
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1062484
+  if (String.fromCodePoint.length !== 1) {
+    var originalFromCodePoint = String.fromCodePoint;
+    defineProperty(String, 'fromCodePoint', function (_) { return originalFromCodePoint.apply(this, arguments); }, true);
+  }
+
+  var StringShims = {
+    // Fast repeat, uses the `Exponentiation by squaring` algorithm.
+    // Perf: http://jsperf.com/string-repeat2/2
+    repeat: (function () {
+      var repeat = function (s, times) {
+        if (times < 1) { return ''; }
+        if (times % 2) { return repeat(s, times - 1) + s; }
+        var half = repeat(s, times / 2);
+        return half + half;
+      };
+
+      return function (times) {
+        var thisStr = String(ES.CheckObjectCoercible(this));
+        times = ES.ToInteger(times);
+        if (times < 0 || times === Infinity) {
+          throw new RangeError('Invalid String#repeat value');
+        }
+        return repeat(thisStr, times);
+      };
+    })(),
+
+    startsWith: function (searchStr) {
+      var thisStr = String(ES.CheckObjectCoercible(this));
+      if (_toString.call(searchStr) === '[object RegExp]') {
+        throw new TypeError('Cannot call method "startsWith" with a regex');
+      }
+      searchStr = String(searchStr);
+      var startArg = arguments.length > 1 ? arguments[1] : void 0;
+      var start = Math.max(ES.ToInteger(startArg), 0);
+      return thisStr.slice(start, start + searchStr.length) === searchStr;
+    },
+
+    endsWith: function (searchStr) {
+      var thisStr = String(ES.CheckObjectCoercible(this));
+      if (_toString.call(searchStr) === '[object RegExp]') {
+        throw new TypeError('Cannot call method "endsWith" with a regex');
+      }
+      searchStr = String(searchStr);
+      var thisLen = thisStr.length;
+      var posArg = arguments.length > 1 ? arguments[1] : void 0;
+      var pos = typeof posArg === 'undefined' ? thisLen : ES.ToInteger(posArg);
+      var end = Math.min(Math.max(pos, 0), thisLen);
+      return thisStr.slice(end - searchStr.length, end) === searchStr;
+    },
+
+    contains: function (searchString) {
+      var position = arguments.length > 1 ? arguments[1] : void 0;
+      // Somehow this trick makes method 100% compat with the spec.
+      return _indexOf.call(this, searchString, position) !== -1;
+    },
+
+    codePointAt: function (pos) {
+      var thisStr = String(ES.CheckObjectCoercible(this));
+      var position = ES.ToInteger(pos);
+      var length = thisStr.length;
+      if (position < 0 || position >= length) { return; }
+      var first = thisStr.charCodeAt(position);
+      var isEnd = (position + 1 === length);
+      if (first < 0xD800 || first > 0xDBFF || isEnd) { return first; }
+      var second = thisStr.charCodeAt(position + 1);
+      if (second < 0xDC00 || second > 0xDFFF) { return first; }
+      return ((first - 0xD800) * 1024) + (second - 0xDC00) + 0x10000;
+    }
+  };
+  defineProperties(String.prototype, StringShims);
+
+  var hasStringTrimBug = '\u0085'.trim().length !== 1;
+  if (hasStringTrimBug) {
+    var originalStringTrim = String.prototype.trim;
+    delete String.prototype.trim;
+    // whitespace from: http://es5.github.io/#x15.5.4.20
+    // implementation from https://github.com/es-shims/es5-shim/blob/v3.4.0/es5-shim.js#L1304-L1324
+    var ws = [
+      '\x09\x0A\x0B\x0C\x0D\x20\xA0\u1680\u180E\u2000\u2001\u2002\u2003',
+      '\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000\u2028',
+      '\u2029\uFEFF'
+    ].join('');
+    var trimRegexp = new RegExp('(^[' + ws + ']+)|([' + ws + ']+$)', 'g');
+    defineProperties(String.prototype, {
+      trim: function () {
+        if (typeof this === 'undefined' || this === null) {
+          throw new TypeError("can't convert " + this + ' to object');
+        }
+        return String(this).replace(trimRegexp, '');
+      }
+    });
+  }
+
+  // see https://people.mozilla.org/~jorendorff/es6-draft.html#sec-string.prototype-@@iterator
+  var StringIterator = function (s) {
+    this._s = String(ES.CheckObjectCoercible(s));
+    this._i = 0;
+  };
+  StringIterator.prototype.next = function () {
+    var s = this._s, i = this._i;
+    if (typeof s === 'undefined' || i >= s.length) {
+      this._s = void 0;
+      return { value: void 0, done: true };
+    }
+    var first = s.charCodeAt(i), second, len;
+    if (first < 0xD800 || first > 0xDBFF || (i + 1) == s.length) {
+      len = 1;
+    } else {
+      second = s.charCodeAt(i + 1);
+      len = (second < 0xDC00 || second > 0xDFFF) ? 1 : 2;
+    }
+    this._i = i + len;
+    return { value: s.substr(i, len), done: false };
+  };
+  addIterator(StringIterator.prototype);
+  addIterator(String.prototype, function () {
+    return new StringIterator(this);
+  });
+
+  if (!startsWithIsCompliant) {
+    // Firefox has a noncompliant startsWith implementation
+    String.prototype.startsWith = StringShims.startsWith;
+    String.prototype.endsWith = StringShims.endsWith;
+  }
+
+  var ArrayShims = {
+    from: function (iterable) {
+      var mapFn = arguments.length > 1 ? arguments[1] : void 0;
+
+      var list = ES.ToObject(iterable, 'bad iterable');
+      if (typeof mapFn !== 'undefined' && !ES.IsCallable(mapFn)) {
+        throw new TypeError('Array.from: when provided, the second argument must be a function');
+      }
+
+      var hasThisArg = arguments.length > 2;
+      var thisArg = hasThisArg ? arguments[2] : void 0;
+
+      var usingIterator = ES.IsIterable(list);
+      // does the spec really mean that Arrays should use ArrayIterator?
+      // https://bugs.ecmascript.org/show_bug.cgi?id=2416
+      //if (Array.isArray(list)) { usingIterator=false; }
+
+      var length;
+      var result, i, value;
+      if (usingIterator) {
+        i = 0;
+        result = ES.IsCallable(this) ? Object(new this()) : [];
+        var it = usingIterator ? ES.GetIterator(list) : null;
+        var iterationValue;
+
+        do {
+          iterationValue = ES.IteratorNext(it);
+          if (!iterationValue.done) {
+            value = iterationValue.value;
+            if (mapFn) {
+              result[i] = hasThisArg ? mapFn.call(thisArg, value, i) : mapFn(value, i);
+            } else {
+              result[i] = value;
+            }
+            i += 1;
+          }
+        } while (!iterationValue.done);
+        length = i;
+      } else {
+        length = ES.ToLength(list.length);
+        result = ES.IsCallable(this) ? Object(new this(length)) : new Array(length);
+        for (i = 0; i < length; ++i) {
+          value = list[i];
+          if (mapFn) {
+            result[i] = hasThisArg ? mapFn.call(thisArg, value, i) : mapFn(value, i);
+          } else {
+            result[i] = value;
+          }
+        }
+      }
+
+      result.length = length;
+      return result;
+    },
+
+    of: function () {
+      return Array.from(arguments);
+    }
+  };
+  defineProperties(Array, ArrayShims);
+
+  var arrayFromSwallowsNegativeLengths = function () {
+    try {
+      return Array.from({ length: -1 }).length === 0;
+    } catch (e) {
+      return false;
+    }
+  };
+  // Fixes a Firefox bug in v32
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=1063993
+  if (!arrayFromSwallowsNegativeLengths()) {
+    defineProperty(Array, 'from', ArrayShims.from, true);
+  }
+
+  // Our ArrayIterator is private; see
+  // https://github.com/paulmillr/es6-shim/issues/252
+  ArrayIterator = function (array, kind) {
+      this.i = 0;
+      this.array = array;
+      this.kind = kind;
+  };
+
+  defineProperties(ArrayIterator.prototype, {
+    next: function () {
+      var i = this.i, array = this.array;
+      if (!(this instanceof ArrayIterator)) {
+        throw new TypeError('Not an ArrayIterator');
+      }
+      if (typeof array !== 'undefined') {
+        var len = ES.ToLength(array.length);
+        for (; i < len; i++) {
+          var kind = this.kind;
+          var retval;
+          if (kind === 'key') {
+            retval = i;
+          } else if (kind === 'value') {
+            retval = array[i];
+          } else if (kind === 'entry') {
+            retval = [i, array[i]];
+          }
+          this.i = i + 1;
+          return { value: retval, done: false };
+        }
+      }
+      this.array = void 0;
+      return { value: void 0, done: true };
+    }
+  });
+  addIterator(ArrayIterator.prototype);
+
+  var ArrayPrototypeShims = {
+    copyWithin: function (target, start) {
+      var end = arguments[2]; // copyWithin.length must be 2
+      var o = ES.ToObject(this);
+      var len = ES.ToLength(o.length);
+      target = ES.ToInteger(target);
+      start = ES.ToInteger(start);
+      var to = target < 0 ? Math.max(len + target, 0) : Math.min(target, len);
+      var from = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
+      end = typeof end === 'undefined' ? len : ES.ToInteger(end);
+      var fin = end < 0 ? Math.max(len + end, 0) : Math.min(end, len);
+      var count = Math.min(fin - from, len - to);
+      var direction = 1;
+      if (from < to && to < (from + count)) {
+        direction = -1;
+        from += count - 1;
+        to += count - 1;
+      }
+      while (count > 0) {
+        if (_hasOwnProperty.call(o, from)) {
+          o[to] = o[from];
+        } else {
+          delete o[from];
+        }
+        from += direction;
+        to += direction;
+        count -= 1;
+      }
+      return o;
+    },
+
+    fill: function (value) {
+      var start = arguments.length > 1 ? arguments[1] : void 0;
+      var end = arguments.length > 2 ? arguments[2] : void 0;
+      var O = ES.ToObject(this);
+      var len = ES.ToLength(O.length);
+      start = ES.ToInteger(typeof start === 'undefined' ? 0 : start);
+      end = ES.ToInteger(typeof end === 'undefined' ? len : end);
+
+      var relativeStart = start < 0 ? Math.max(len + start, 0) : Math.min(start, len);
+      var relativeEnd = end < 0 ? len + end : end;
+
+      for (var i = relativeStart; i < len && i < relativeEnd; ++i) {
+        O[i] = value;
+      }
+      return O;
+    },
+
+    find: function find(predicate) {
+      var list = ES.ToObject(this);
+      var length = ES.ToLength(list.length);
+      if (!ES.IsCallable(predicate)) {
+        throw new TypeError('Array#find: predicate must be a function');
+      }
+      var thisArg = arguments[1];
+      for (var i = 0, value; i < length; i++) {
+        value = list[i];
+        if (predicate.call(thisArg, value, i, list)) { return value; }
+      }
+      return;
+    },
+
+    findIndex: function findIndex(predicate) {
+      var list = ES.ToObject(this);
+      var length = ES.ToLength(list.length);
+      if (!ES.IsCallable(predicate)) {
+        throw new TypeError('Array#findIndex: predicate must be a function');
+      }
+      var thisArg = arguments[1];
+      for (var i = 0; i < length; i++) {
+        if (predicate.call(thisArg, list[i], i, list)) { return i; }
+      }
+      return -1;
+    },
+
+    keys: function () {
+      return new ArrayIterator(this, 'key');
+    },
+
+    values: function () {
+      return new ArrayIterator(this, 'value');
+    },
+
+    entries: function () {
+      return new ArrayIterator(this, 'entry');
+    }
+  };
+  // Safari 7.1 defines Array#keys and Array#entries natively,
+  // but the resulting ArrayIterator objects don't have a "next" method.
+  if (Array.prototype.keys && !ES.IsCallable([1].keys().next)) {
+    delete Array.prototype.keys;
+  }
+  if (Array.prototype.entries && !ES.IsCallable([1].entries().next)) {
+    delete Array.prototype.entries;
+  }
+  defineProperties(Array.prototype, ArrayPrototypeShims);
+
+  addIterator(Array.prototype, function () { return this.values(); });
+  // Chrome defines keys/values/entries on Array, but doesn't give us
+  // any way to identify its iterator.  So add our own shimmed field.
+  if (Object.getPrototypeOf) {
+    addIterator(Object.getPrototypeOf([].values()));
+  }
+
+  var maxSafeInteger = Math.pow(2, 53) - 1;
+  defineProperties(Number, {
+    MAX_SAFE_INTEGER: maxSafeInteger,
+    MIN_SAFE_INTEGER: -maxSafeInteger,
+    EPSILON: 2.220446049250313e-16,
+
+    parseInt: globals.parseInt,
+    parseFloat: globals.parseFloat,
+
+    isFinite: function (value) {
+      return typeof value === 'number' && global_isFinite(value);
+    },
+
+    isInteger: function (value) {
+      return Number.isFinite(value) &&
+        ES.ToInteger(value) === value;
+    },
+
+    isSafeInteger: function (value) {
+      return Number.isInteger(value) && Math.abs(value) <= Number.MAX_SAFE_INTEGER;
+    },
+
+    isNaN: function (value) {
+      // NaN !== NaN, but they are identical.
+      // NaNs are the only non-reflexive value, i.e., if x !== x,
+      // then x is NaN.
+      // isNaN is broken: it converts its argument to number, so
+      // isNaN('foo') => true
+      return value !== value;
+    }
+
+  });
+
+  // Work around bugs in Array#find and Array#findIndex -- early
+  // implementations skipped holes in sparse arrays. (Note that the
+  // implementations of find/findIndex indirectly use shimmed
+  // methods of Number, so this test has to happen down here.)
+  if (![, 1].find(function (item, idx) { return idx === 0; })) {
+    defineProperty(Array.prototype, 'find', ArrayPrototypeShims.find, true);
+  }
+  if ([, 1].findIndex(function (item, idx) { return idx === 0; }) !== 0) {
+    defineProperty(Array.prototype, 'findIndex', ArrayPrototypeShims.findIndex, true);
+  }
+
+  if (supportsDescriptors) {
+    defineProperties(Object, {
+      getPropertyDescriptor: function (subject, name) {
+        var pd = Object.getOwnPropertyDescriptor(subject, name);
+        var proto = Object.getPrototypeOf(subject);
+        while (typeof pd === 'undefined' && proto !== null) {
+          pd = Object.getOwnPropertyDescriptor(proto, name);
+          proto = Object.getPrototypeOf(proto);
+        }
+        return pd;
+      },
+
+      getPropertyNames: function (subject) {
+        var result = Object.getOwnPropertyNames(subject);
+        var proto = Object.getPrototypeOf(subject);
+
+        var addProperty = function (property) {
+          if (result.indexOf(property) === -1) {
+            result.push(property);
+          }
+        };
+
+        while (proto !== null) {
+          Object.getOwnPropertyNames(proto).forEach(addProperty);
+          proto = Object.getPrototypeOf(proto);
+        }
+        return result;
+      }
+    });
+
+    defineProperties(Object, {
+      // 19.1.3.1
+      assign: function (target, source) {
+        if (!ES.TypeIsObject(target)) {
+          throw new TypeError('target must be an object');
+        }
+        return Array.prototype.reduce.call(arguments, function (target, source) {
+          return Object.keys(Object(source)).reduce(function (target, key) {
+            target[key] = source[key];
+            return target;
+          }, target);
+        });
+      },
+
+      is: function (a, b) {
+        return ES.SameValue(a, b);
+      },
+
+      // 19.1.3.9
+      // shim from https://gist.github.com/WebReflection/5593554
+      setPrototypeOf: (function (Object, magic) {
+        var set;
+
+        var checkArgs = function (O, proto) {
+          if (!ES.TypeIsObject(O)) {
+            throw new TypeError('cannot set prototype on a non-object');
+          }
+          if (!(proto === null || ES.TypeIsObject(proto))) {
+            throw new TypeError('can only set prototype to an object or null' + proto);
+          }
+        };
+
+        var setPrototypeOf = function (O, proto) {
+          checkArgs(O, proto);
+          set.call(O, proto);
+          return O;
+        };
+
+        try {
+          // this works already in Firefox and Safari
+          set = Object.getOwnPropertyDescriptor(Object.prototype, magic).set;
+          set.call({}, null);
+        } catch (e) {
+          if (Object.prototype !== {}[magic]) {
+            // IE < 11 cannot be shimmed
+            return;
+          }
+          // probably Chrome or some old Mobile stock browser
+          set = function (proto) {
+            this[magic] = proto;
+          };
+          // please note that this will **not** work
+          // in those browsers that do not inherit
+          // __proto__ by mistake from Object.prototype
+          // in these cases we should probably throw an error
+          // or at least be informed about the issue
+          setPrototypeOf.polyfill = setPrototypeOf(
+            setPrototypeOf({}, null),
+            Object.prototype
+          ) instanceof Object;
+          // setPrototypeOf.polyfill === true means it works as meant
+          // setPrototypeOf.polyfill === false means it's not 100% reliable
+          // setPrototypeOf.polyfill === undefined
+          // or
+          // setPrototypeOf.polyfill ==  null means it's not a polyfill
+          // which means it works as expected
+          // we can even delete Object.prototype.__proto__;
+        }
+        return setPrototypeOf;
+      })(Object, '__proto__')
+    });
+  }
+
+  // Workaround bug in Opera 12 where setPrototypeOf(x, null) doesn't work,
+  // but Object.create(null) does.
+  if (Object.setPrototypeOf && Object.getPrototypeOf &&
+      Object.getPrototypeOf(Object.setPrototypeOf({}, null)) !== null &&
+      Object.getPrototypeOf(Object.create(null)) === null) {
+    (function () {
+      var FAKENULL = Object.create(null);
+      var gpo = Object.getPrototypeOf, spo = Object.setPrototypeOf;
+      Object.getPrototypeOf = function (o) {
+        var result = gpo(o);
+        return result === FAKENULL ? null : result;
+      };
+      Object.setPrototypeOf = function (o, p) {
+        if (p === null) { p = FAKENULL; }
+        return spo(o, p);
+      };
+      Object.setPrototypeOf.polyfill = false;
+    })();
+  }
+
+  try {
+    Object.keys('foo');
+  } catch (e) {
+    var originalObjectKeys = Object.keys;
+    Object.keys = function (obj) {
+      return originalObjectKeys(ES.ToObject(obj));
+    };
+  }
+
+  var MathShims = {
+    acosh: function (value) {
+      value = Number(value);
+      if (Number.isNaN(value) || value < 1) { return NaN; }
+      if (value === 1) { return 0; }
+      if (value === Infinity) { return value; }
+      return Math.log(value + Math.sqrt(value * value - 1));
+    },
+
+    asinh: function (value) {
+      value = Number(value);
+      if (value === 0 || !global_isFinite(value)) {
+        return value;
+      }
+      return value < 0 ? -Math.asinh(-value) : Math.log(value + Math.sqrt(value * value + 1));
+    },
+
+    atanh: function (value) {
+      value = Number(value);
+      if (Number.isNaN(value) || value < -1 || value > 1) {
+        return NaN;
+      }
+      if (value === -1) { return -Infinity; }
+      if (value === 1) { return Infinity; }
+      if (value === 0) { return value; }
+      return 0.5 * Math.log((1 + value) / (1 - value));
+    },
+
+    cbrt: function (value) {
+      value = Number(value);
+      if (value === 0) { return value; }
+      var negate = value < 0, result;
+      if (negate) { value = -value; }
+      result = Math.pow(value, 1 / 3);
+      return negate ? -result : result;
+    },
+
+    clz32: function (value) {
+      // See https://bugs.ecmascript.org/show_bug.cgi?id=2465
+      value = Number(value);
+      var number = ES.ToUint32(value);
+      if (number === 0) {
+        return 32;
+      }
+      return 32 - (number).toString(2).length;
+    },
+
+    cosh: function (value) {
+      value = Number(value);
+      if (value === 0) { return 1; } // +0 or -0
+      if (Number.isNaN(value)) { return NaN; }
+      if (!global_isFinite(value)) { return Infinity; }
+      if (value < 0) { value = -value; }
+      if (value > 21) { return Math.exp(value) / 2; }
+      return (Math.exp(value) + Math.exp(-value)) / 2;
+    },
+
+    expm1: function (value) {
+      value = Number(value);
+      if (value === -Infinity) { return -1; }
+      if (!global_isFinite(value) || value === 0) { return value; }
+      return Math.exp(value) - 1;
+    },
+
+    hypot: function (x, y) {
+      var anyNaN = false;
+      var allZero = true;
+      var anyInfinity = false;
+      var numbers = [];
+      Array.prototype.every.call(arguments, function (arg) {
+        var num = Number(arg);
+        if (Number.isNaN(num)) {
+          anyNaN = true;
+        } else if (num === Infinity || num === -Infinity) {
+          anyInfinity = true;
+        } else if (num !== 0) {
+          allZero = false;
+        }
+        if (anyInfinity) {
+          return false;
+        } else if (!anyNaN) {
+          numbers.push(Math.abs(num));
+        }
+        return true;
+      });
+      if (anyInfinity) { return Infinity; }
+      if (anyNaN) { return NaN; }
+      if (allZero) { return 0; }
+
+      numbers.sort(function (a, b) { return b - a; });
+      var largest = numbers[0];
+      var divided = numbers.map(function (number) { return number / largest; });
+      var sum = divided.reduce(function (sum, number) { return sum += number * number; }, 0);
+      return largest * Math.sqrt(sum);
+    },
+
+    log2: function (value) {
+      return Math.log(value) * Math.LOG2E;
+    },
+
+    log10: function (value) {
+      return Math.log(value) * Math.LOG10E;
+    },
+
+    log1p: function (value) {
+      value = Number(value);
+      if (value < -1 || Number.isNaN(value)) { return NaN; }
+      if (value === 0 || value === Infinity) { return value; }
+      if (value === -1) { return -Infinity; }
+      var result = 0;
+      var n = 50;
+
+      if (value < 0 || value > 1) { return Math.log(1 + value); }
+      for (var i = 1; i < n; i++) {
+        if ((i % 2) === 0) {
+          result -= Math.pow(value, i) / i;
+        } else {
+          result += Math.pow(value, i) / i;
+        }
+      }
+
+      return result;
+    },
+
+    sign: function (value) {
+      var number = +value;
+      if (number === 0) { return number; }
+      if (Number.isNaN(number)) { return number; }
+      return number < 0 ? -1 : 1;
+    },
+
+    sinh: function (value) {
+      value = Number(value);
+      if (!global_isFinite(value) || value === 0) { return value; }
+      return (Math.exp(value) - Math.exp(-value)) / 2;
+    },
+
+    tanh: function (value) {
+      value = Number(value);
+      if (Number.isNaN(value) || value === 0) { return value; }
+      if (value === Infinity) { return 1; }
+      if (value === -Infinity) { return -1; }
+      return (Math.exp(value) - Math.exp(-value)) / (Math.exp(value) + Math.exp(-value));
+    },
+
+    trunc: function (value) {
+      var number = Number(value);
+      return number < 0 ? -Math.floor(-number) : Math.floor(number);
+    },
+
+    imul: function (x, y) {
+      // taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/imul
+      x = ES.ToUint32(x);
+      y = ES.ToUint32(y);
+      var ah  = (x >>> 16) & 0xffff;
+      var al = x & 0xffff;
+      var bh  = (y >>> 16) & 0xffff;
+      var bl = y & 0xffff;
+      // the shift by 0 fixes the sign on the high part
+      // the final |0 converts the unsigned value into a signed value
+      return ((al * bl) + (((ah * bl + al * bh) << 16) >>> 0)|0);
+    },
+
+    fround: function (x) {
+      if (x === 0 || x === Infinity || x === -Infinity || Number.isNaN(x)) {
+        return x;
+      }
+      var num = Number(x);
+      return numberConversion.toFloat32(num);
+    }
+  };
+  defineProperties(Math, MathShims);
+
+  if (Math.imul(0xffffffff, 5) !== -5) {
+    // Safari 6.1, at least, reports "0" for this value
+    Math.imul = MathShims.imul;
+  }
+
+  // Promises
+  // Simplest possible implementation; use a 3rd-party library if you
+  // want the best possible speed and/or long stack traces.
+  var PromiseShim = (function () {
+
+    var Promise, Promise$prototype;
+
+    ES.IsPromise = function (promise) {
+      if (!ES.TypeIsObject(promise)) {
+        return false;
+      }
+      if (!promise._promiseConstructor) {
+        // _promiseConstructor is a bit more unique than _status, so we'll
+        // check that instead of the [[PromiseStatus]] internal field.
+        return false;
+      }
+      if (typeof promise._status === 'undefined') {
+        return false; // uninitialized
+      }
+      return true;
+    };
+
+    // "PromiseCapability" in the spec is what most promise implementations
+    // call a "deferred".
+    var PromiseCapability = function (C) {
+      if (!ES.IsCallable(C)) {
+        throw new TypeError('bad promise constructor');
+      }
+      var capability = this;
+      var resolver = function (resolve, reject) {
+        capability.resolve = resolve;
+        capability.reject = reject;
+      };
+      capability.promise = ES.Construct(C, [resolver]);
+      // see https://bugs.ecmascript.org/show_bug.cgi?id=2478
+      if (!capability.promise._es6construct) {
+        throw new TypeError('bad promise constructor');
+      }
+      if (!(ES.IsCallable(capability.resolve) &&
+            ES.IsCallable(capability.reject))) {
+        throw new TypeError('bad promise constructor');
+      }
+    };
+
+    // find an appropriate setImmediate-alike
+    var setTimeout = globals.setTimeout;
+    var makeZeroTimeout;
+    if (typeof window !== 'undefined' && ES.IsCallable(window.postMessage)) {
+      makeZeroTimeout = function () {
+        // from http://dbaron.org/log/20100309-faster-timeouts
+        var timeouts = [];
+        var messageName = 'zero-timeout-message';
+        var setZeroTimeout = function (fn) {
+          timeouts.push(fn);
+          window.postMessage(messageName, '*');
+        };
+        var handleMessage = function (event) {
+          if (event.source == window && event.data == messageName) {
+            event.stopPropagation();
+            if (timeouts.length === 0) { return; }
+            var fn = timeouts.shift();
+            fn();
+          }
+        };
+        window.addEventListener('message', handleMessage, true);
+        return setZeroTimeout;
+      };
+    }
+    var makePromiseAsap = function () {
+      // An efficient task-scheduler based on a pre-existing Promise
+      // implementation, which we can use even if we override the
+      // global Promise below (in order to workaround bugs)
+      // https://github.com/Raynos/observ-hash/issues/2#issuecomment-35857671
+      var P = globals.Promise;
+      return P && P.resolve && function (task) {
+        return P.resolve().then(task);
+      };
+    };
+    var enqueue = ES.IsCallable(globals.setImmediate) ?
+      globals.setImmediate.bind(globals) :
+      typeof process === 'object' && process.nextTick ? process.nextTick :
+      makePromiseAsap() ||
+      (ES.IsCallable(makeZeroTimeout) ? makeZeroTimeout() :
+      function (task) { setTimeout(task, 0); }); // fallback
+
+    var triggerPromiseReactions = function (reactions, x) {
+      reactions.forEach(function (reaction) {
+        enqueue(function () {
+          // PromiseReactionTask
+          var handler = reaction.handler;
+          var capability = reaction.capability;
+          var resolve = capability.resolve;
+          var reject = capability.reject;
+          try {
+            var result = handler(x);
+            if (result === capability.promise) {
+              throw new TypeError('self resolution');
+            }
+            var updateResult =
+              updatePromiseFromPotentialThenable(result, capability);
+            if (!updateResult) {
+              resolve(result);
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    };
+
+    var updatePromiseFromPotentialThenable = function (x, capability) {
+      if (!ES.TypeIsObject(x)) {
+        return false;
+      }
+      var resolve = capability.resolve;
+      var reject = capability.reject;
+      try {
+        var then = x.then; // only one invocation of accessor
+        if (!ES.IsCallable(then)) { return false; }
+        then.call(x, resolve, reject);
+      } catch (e) {
+        reject(e);
+      }
+      return true;
+    };
+
+    var promiseResolutionHandler = function (promise, onFulfilled, onRejected) {
+      return function (x) {
+        if (x === promise) {
+          return onRejected(new TypeError('self resolution'));
+        }
+        var C = promise._promiseConstructor;
+        var capability = new PromiseCapability(C);
+        var updateResult = updatePromiseFromPotentialThenable(x, capability);
+        if (updateResult) {
+          return capability.promise.then(onFulfilled, onRejected);
+        } else {
+          return onFulfilled(x);
+        }
+      };
+    };
+
+    Promise = function (resolver) {
+      var promise = this;
+      promise = emulateES6construct(promise);
+      if (!promise._promiseConstructor) {
+        // we use _promiseConstructor as a stand-in for the internal
+        // [[PromiseStatus]] field; it's a little more unique.
+        throw new TypeError('bad promise');
+      }
+      if (typeof promise._status !== 'undefined') {
+        throw new TypeError('promise already initialized');
+      }
+      // see https://bugs.ecmascript.org/show_bug.cgi?id=2482
+      if (!ES.IsCallable(resolver)) {
+        throw new TypeError('not a valid resolver');
+      }
+      promise._status = 'unresolved';
+      promise._resolveReactions = [];
+      promise._rejectReactions = [];
+
+      var resolve = function (resolution) {
+        if (promise._status !== 'unresolved') { return; }
+        var reactions = promise._resolveReactions;
+        promise._result = resolution;
+        promise._resolveReactions = void 0;
+        promise._rejectReactions = void 0;
+        promise._status = 'has-resolution';
+        triggerPromiseReactions(reactions, resolution);
+      };
+      var reject = function (reason) {
+        if (promise._status !== 'unresolved') { return; }
+        var reactions = promise._rejectReactions;
+        promise._result = reason;
+        promise._resolveReactions = void 0;
+        promise._rejectReactions = void 0;
+        promise._status = 'has-rejection';
+        triggerPromiseReactions(reactions, reason);
+      };
+      try {
+        resolver(resolve, reject);
+      } catch (e) {
+        reject(e);
+      }
+      return promise;
+    };
+    Promise$prototype = Promise.prototype;
+    defineProperties(Promise, {
+      '@@create': function (obj) {
+        var constructor = this;
+        // AllocatePromise
+        // The `obj` parameter is a hack we use for es5
+        // compatibility.
+        var prototype = constructor.prototype || Promise$prototype;
+        obj = obj || create(prototype);
+        defineProperties(obj, {
+          _status: void 0,
+          _result: void 0,
+          _resolveReactions: void 0,
+          _rejectReactions: void 0,
+          _promiseConstructor: void 0
+        });
+        obj._promiseConstructor = constructor;
+        return obj;
+      }
+    });
+
+    var _promiseAllResolver = function (index, values, capability, remaining) {
+      var done = false;
+      return function (x) {
+        if (done) { return; } // protect against being called multiple times
+        done = true;
+        values[index] = x;
+        if ((--remaining.count) === 0) {
+          var resolve = capability.resolve;
+          resolve(values); // call w/ this===undefined
+        }
+      };
+    };
+
+    Promise.all = function (iterable) {
+      var C = this;
+      var capability = new PromiseCapability(C);
+      var resolve = capability.resolve;
+      var reject = capability.reject;
+      try {
+        if (!ES.IsIterable(iterable)) {
+          throw new TypeError('bad iterable');
+        }
+        var it = ES.GetIterator(iterable);
+        var values = [], remaining = { count: 1 };
+        for (var index = 0; ; index++) {
+          var next = ES.IteratorNext(it);
+          if (next.done) {
+            break;
+          }
+          var nextPromise = C.resolve(next.value);
+          var resolveElement = _promiseAllResolver(
+            index, values, capability, remaining
+          );
+          remaining.count++;
+          nextPromise.then(resolveElement, capability.reject);
+        }
+        if ((--remaining.count) === 0) {
+          resolve(values); // call w/ this===undefined
+        }
+      } catch (e) {
+        reject(e);
+      }
+      return capability.promise;
+    };
+
+    Promise.race = function (iterable) {
+      var C = this;
+      var capability = new PromiseCapability(C);
+      var resolve = capability.resolve;
+      var reject = capability.reject;
+      try {
+        if (!ES.IsIterable(iterable)) {
+          throw new TypeError('bad iterable');
+        }
+        var it = ES.GetIterator(iterable);
+        while (true) {
+          var next = ES.IteratorNext(it);
+          if (next.done) {
+            // If iterable has no items, resulting promise will never
+            // resolve; see:
+            // https://github.com/domenic/promises-unwrapping/issues/75
+            // https://bugs.ecmascript.org/show_bug.cgi?id=2515
+            break;
+          }
+          var nextPromise = C.resolve(next.value);
+          nextPromise.then(resolve, reject);
+        }
+      } catch (e) {
+        reject(e);
+      }
+      return capability.promise;
+    };
+
+    Promise.reject = function (reason) {
+      var C = this;
+      var capability = new PromiseCapability(C);
+      var reject = capability.reject;
+      reject(reason); // call with this===undefined
+      return capability.promise;
+    };
+
+    Promise.resolve = function (v) {
+      var C = this;
+      if (ES.IsPromise(v)) {
+        var constructor = v._promiseConstructor;
+        if (constructor === C) { return v; }
+      }
+      var capability = new PromiseCapability(C);
+      var resolve = capability.resolve;
+      resolve(v); // call with this===undefined
+      return capability.promise;
+    };
+
+    Promise.prototype['catch'] = function (onRejected) {
+      return this.then(void 0, onRejected);
+    };
+
+    Promise.prototype.then = function (onFulfilled, onRejected) {
+      var promise = this;
+      if (!ES.IsPromise(promise)) { throw new TypeError('not a promise'); }
+      // this.constructor not this._promiseConstructor; see
+      // https://bugs.ecmascript.org/show_bug.cgi?id=2513
+      var C = this.constructor;
+      var capability = new PromiseCapability(C);
+      if (!ES.IsCallable(onRejected)) {
+        onRejected = function (e) { throw e; };
+      }
+      if (!ES.IsCallable(onFulfilled)) {
+        onFulfilled = function (x) { return x; };
+      }
+      var resolutionHandler =
+        promiseResolutionHandler(promise, onFulfilled, onRejected);
+      var resolveReaction =
+        { capability: capability, handler: resolutionHandler };
+      var rejectReaction =
+        { capability: capability, handler: onRejected };
+      switch (promise._status) {
+      case 'unresolved':
+        promise._resolveReactions.push(resolveReaction);
+        promise._rejectReactions.push(rejectReaction);
+        break;
+      case 'has-resolution':
+        triggerPromiseReactions([resolveReaction], promise._result);
+        break;
+      case 'has-rejection':
+        triggerPromiseReactions([rejectReaction], promise._result);
+        break;
+      default:
+        throw new TypeError('unexpected');
+      }
+      return capability.promise;
+    };
+
+    return Promise;
+  })();
+  // export the Promise constructor.
+  defineProperties(globals, { Promise: PromiseShim });
+  // In Chrome 33 (and thereabouts) Promise is defined, but the
+  // implementation is buggy in a number of ways.  Let's check subclassing
+  // support to see if we have a buggy implementation.
+  var promiseSupportsSubclassing = supportsSubclassing(globals.Promise, function (S) {
+    return S.resolve(42) instanceof S;
+  });
+  var promiseIgnoresNonFunctionThenCallbacks = (function () {
+    try {
+      globals.Promise.reject(42).then(null, 5).then(null, function () {});
+      return true;
+    } catch (ex) {
+      return false;
+    }
+  }());
+  var promiseRequiresObjectContext = (function () {
+    try { Promise.call(3, function () {}); } catch (e) { return true; }
+    return false;
+  }());
+  if (!promiseSupportsSubclassing || !promiseIgnoresNonFunctionThenCallbacks || !promiseRequiresObjectContext) {
+    globals.Promise = PromiseShim;
+  }
+
+  // Map and Set require a true ES5 environment
+  // Their fast path also requires that the environment preserve
+  // property insertion order, which is not guaranteed by the spec.
+  var testOrder = function (a) {
+    var b = Object.keys(a.reduce(function (o, k) {
+      o[k] = true;
+      return o;
+    }, {}));
+    return a.join(':') === b.join(':');
+  };
+  var preservesInsertionOrder = testOrder(['z', 'a', 'bb']);
+  // some engines (eg, Chrome) only preserve insertion order for string keys
+  var preservesNumericInsertionOrder = testOrder(['z', 1, 'a', '3', 2]);
+
+  if (supportsDescriptors) {
+
+    var fastkey = function fastkey(key) {
+      if (!preservesInsertionOrder) {
+        return null;
+      }
+      var type = typeof key;
+      if (type === 'string') {
+        return '$' + key;
+      } else if (type === 'number') {
+        // note that -0 will get coerced to "0" when used as a property key
+        if (!preservesNumericInsertionOrder) {
+          return 'n' + key;
+        }
+        return key;
+      }
+      return null;
+    };
+
+    var emptyObject = function emptyObject() {
+      // accomodate some older not-quite-ES5 browsers
+      return Object.create ? Object.create(null) : {};
+    };
+
+    var collectionShims = {
+      Map: (function () {
+
+        var empty = {};
+
+        function MapEntry(key, value) {
+          this.key = key;
+          this.value = value;
+          this.next = null;
+          this.prev = null;
+        }
+
+        MapEntry.prototype.isRemoved = function () {
+          return this.key === empty;
+        };
+
+        function MapIterator(map, kind) {
+          this.head = map._head;
+          this.i = this.head;
+          this.kind = kind;
+        }
+
+        MapIterator.prototype = {
+          next: function () {
+            var i = this.i, kind = this.kind, head = this.head, result;
+            if (typeof this.i === 'undefined') {
+              return { value: void 0, done: true };
+            }
+            while (i.isRemoved() && i !== head) {
+              // back up off of removed entries
+              i = i.prev;
+            }
+            // advance to next unreturned element.
+            while (i.next !== head) {
+              i = i.next;
+              if (!i.isRemoved()) {
+                if (kind === 'key') {
+                  result = i.key;
+                } else if (kind === 'value') {
+                  result = i.value;
+                } else {
+                  result = [i.key, i.value];
+                }
+                this.i = i;
+                return { value: result, done: false };
+              }
+            }
+            // once the iterator is done, it is done forever.
+            this.i = void 0;
+            return { value: void 0, done: true };
+          }
+        };
+        addIterator(MapIterator.prototype);
+
+        function Map(iterable) {
+          var map = this;
+          map = emulateES6construct(map);
+          if (!map._es6map) {
+            throw new TypeError('bad map');
+          }
+
+          var head = new MapEntry(null, null);
+          // circular doubly-linked list.
+          head.next = head.prev = head;
+
+          defineProperties(map, {
+            _head: head,
+            _storage: emptyObject(),
+            _size: 0
+          });
+
+          // Optionally initialize map from iterable
+          if (typeof iterable !== 'undefined' && iterable !== null) {
+            var it = ES.GetIterator(iterable);
+            var adder = map.set;
+            if (!ES.IsCallable(adder)) { throw new TypeError('bad map'); }
+            while (true) {
+              var next = ES.IteratorNext(it);
+              if (next.done) { break; }
+              var nextItem = next.value;
+              if (!ES.TypeIsObject(nextItem)) {
+                throw new TypeError('expected iterable of pairs');
+              }
+              adder.call(map, nextItem[0], nextItem[1]);
+            }
+          }
+          return map;
+        }
+        var Map$prototype = Map.prototype;
+        defineProperties(Map, {
+          '@@create': function (obj) {
+            var constructor = this;
+            var prototype = constructor.prototype || Map$prototype;
+            obj = obj || create(prototype);
+            defineProperties(obj, { _es6map: true });
+            return obj;
+          }
+        });
+
+        Object.defineProperty(Map.prototype, 'size', {
+          configurable: true,
+          enumerable: false,
+          get: function () {
+            if (typeof this._size === 'undefined') {
+              throw new TypeError('size method called on incompatible Map');
+            }
+            return this._size;
+          }
+        });
+
+        defineProperties(Map.prototype, {
+          get: function (key) {
+            var fkey = fastkey(key);
+            if (fkey !== null) {
+              // fast O(1) path
+              var entry = this._storage[fkey];
+              if (entry) {
+                return entry.value;
+              } else {
+                return;
+              }
+            }
+            var head = this._head, i = head;
+            while ((i = i.next) !== head) {
+              if (ES.SameValueZero(i.key, key)) {
+                return i.value;
+              }
+            }
+            return;
+          },
+
+          has: function (key) {
+            var fkey = fastkey(key);
+            if (fkey !== null) {
+              // fast O(1) path
+              return typeof this._storage[fkey] !== 'undefined';
+            }
+            var head = this._head, i = head;
+            while ((i = i.next) !== head) {
+              if (ES.SameValueZero(i.key, key)) {
+                return true;
+              }
+            }
+            return false;
+          },
+
+          set: function (key, value) {
+            var head = this._head, i = head, entry;
+            var fkey = fastkey(key);
+            if (fkey !== null) {
+              // fast O(1) path
+              if (typeof this._storage[fkey] !== 'undefined') {
+                this._storage[fkey].value = value;
+                return;
+              } else {
+                entry = this._storage[fkey] = new MapEntry(key, value);
+                i = head.prev;
+                // fall through
+              }
+            }
+            while ((i = i.next) !== head) {
+              if (ES.SameValueZero(i.key, key)) {
+                i.value = value;
+                return;
+              }
+            }
+            entry = entry || new MapEntry(key, value);
+            if (ES.SameValue(-0, key)) {
+              entry.key = +0; // coerce -0 to +0 in entry
+            }
+            entry.next = this._head;
+            entry.prev = this._head.prev;
+            entry.prev.next = entry;
+            entry.next.prev = entry;
+            this._size += 1;
+            return this;
+          },
+
+          'delete': function (key) {
+            var head = this._head, i = head;
+            var fkey = fastkey(key);
+            if (fkey !== null) {
+              // fast O(1) path
+              if (typeof this._storage[fkey] === 'undefined') {
+                return false;
+              }
+              i = this._storage[fkey].prev;
+              delete this._storage[fkey];
+              // fall through
+            }
+            while ((i = i.next) !== head) {
+              if (ES.SameValueZero(i.key, key)) {
+                i.key = i.value = empty;
+                i.prev.next = i.next;
+                i.next.prev = i.prev;
+                this._size -= 1;
+                return true;
+              }
+            }
+            return false;
+          },
+
+          clear: function () {
+            this._size = 0;
+            this._storage = emptyObject();
+            var head = this._head, i = head, p = i.next;
+            while ((i = p) !== head) {
+              i.key = i.value = empty;
+              p = i.next;
+              i.next = i.prev = head;
+            }
+            head.next = head.prev = head;
+          },
+
+          keys: function () {
+            return new MapIterator(this, 'key');
+          },
+
+          values: function () {
+            return new MapIterator(this, 'value');
+          },
+
+          entries: function () {
+            return new MapIterator(this, 'key+value');
+          },
+
+          forEach: function (callback) {
+            var context = arguments.length > 1 ? arguments[1] : null;
+            var it = this.entries();
+            for (var entry = it.next(); !entry.done; entry = it.next()) {
+              callback.call(context, entry.value[1], entry.value[0], this);
+            }
+          }
+        });
+        addIterator(Map.prototype, function () { return this.entries(); });
+
+        return Map;
+      })(),
+
+      Set: (function () {
+        // Creating a Map is expensive.  To speed up the common case of
+        // Sets containing only string or numeric keys, we use an object
+        // as backing storage and lazily create a full Map only when
+        // required.
+        var SetShim = function Set(iterable) {
+          var set = this;
+          set = emulateES6construct(set);
+          if (!set._es6set) {
+            throw new TypeError('bad set');
+          }
+
+          defineProperties(set, {
+            '[[SetData]]': null,
+            _storage: emptyObject()
+          });
+
+          // Optionally initialize map from iterable
+          if (typeof iterable !== 'undefined' && iterable !== null) {
+            var it = ES.GetIterator(iterable);
+            var adder = set.add;
+            if (!ES.IsCallable(adder)) { throw new TypeError('bad set'); }
+            while (true) {
+              var next = ES.IteratorNext(it);
+              if (next.done) { break; }
+              var nextItem = next.value;
+              adder.call(set, nextItem);
+            }
+          }
+          return set;
+        };
+        var Set$prototype = SetShim.prototype;
+        defineProperties(SetShim, {
+          '@@create': function (obj) {
+            var constructor = this;
+            var prototype = constructor.prototype || Set$prototype;
+            obj = obj || create(prototype);
+            defineProperties(obj, { _es6set: true });
+            return obj;
+          }
+        });
+
+        // Switch from the object backing storage to a full Map.
+        var ensureMap = function ensureMap(set) {
+          if (!set['[[SetData]]']) {
+            var m = set['[[SetData]]'] = new collectionShims.Map();
+            Object.keys(set._storage).forEach(function (k) {
+              // fast check for leading '$'
+              if (k.charCodeAt(0) === 36) {
+                k = k.slice(1);
+              } else if (k.charAt(0) === 'n') {
+                k = +k.slice(1);
+              } else {
+                k = +k;
+              }
+              m.set(k, k);
+            });
+            set._storage = null; // free old backing storage
+          }
+        };
+
+        Object.defineProperty(SetShim.prototype, 'size', {
+          configurable: true,
+          enumerable: false,
+          get: function () {
+            if (typeof this._storage === 'undefined') {
+              // https://github.com/paulmillr/es6-shim/issues/176
+              throw new TypeError('size method called on incompatible Set');
+            }
+            ensureMap(this);
+            return this['[[SetData]]'].size;
+          }
+        });
+
+        defineProperties(SetShim.prototype, {
+          has: function (key) {
+            var fkey;
+            if (this._storage && (fkey = fastkey(key)) !== null) {
+              return !!this._storage[fkey];
+            }
+            ensureMap(this);
+            return this['[[SetData]]'].has(key);
+          },
+
+          add: function (key) {
+            var fkey;
+            if (this._storage && (fkey = fastkey(key)) !== null) {
+              this._storage[fkey] = true;
+              return;
+            }
+            ensureMap(this);
+            this['[[SetData]]'].set(key, key);
+            return this;
+          },
+
+          'delete': function (key) {
+            var fkey;
+            if (this._storage && (fkey = fastkey(key)) !== null) {
+              var hasFKey = _hasOwnProperty.call(this._storage, fkey);
+              return (delete this._storage[fkey]) && hasFKey;
+            }
+            ensureMap(this);
+            return this['[[SetData]]']['delete'](key);
+          },
+
+          clear: function () {
+            if (this._storage) {
+              this._storage = emptyObject();
+              return;
+            }
+            return this['[[SetData]]'].clear();
+          },
+
+          keys: function () {
+            ensureMap(this);
+            return this['[[SetData]]'].keys();
+          },
+
+          values: function () {
+            ensureMap(this);
+            return this['[[SetData]]'].values();
+          },
+
+          entries: function () {
+            ensureMap(this);
+            return this['[[SetData]]'].entries();
+          },
+
+          forEach: function (callback) {
+            var context = arguments.length > 1 ? arguments[1] : null;
+            var entireSet = this;
+            ensureMap(this);
+            this['[[SetData]]'].forEach(function (value, key) {
+              callback.call(context, key, key, entireSet);
+            });
+          }
+        });
+        addIterator(SetShim.prototype, function () { return this.values(); });
+
+        return SetShim;
+      })()
+    };
+    defineProperties(globals, collectionShims);
+
+    if (globals.Map || globals.Set) {
+      /*
+        - In Firefox < 23, Map#size is a function.
+        - In all current Firefox, Set#entries/keys/values & Map#clear do not exist
+        - https://bugzilla.mozilla.org/show_bug.cgi?id=869996
+        - In Firefox 24, Map and Set do not implement forEach
+        - In Firefox 25 at least, Map and Set are callable without "new"
+      */
+      if (
+        typeof globals.Map.prototype.clear !== 'function' ||
+        new globals.Set().size !== 0 ||
+        new globals.Map().size !== 0 ||
+        typeof globals.Map.prototype.keys !== 'function' ||
+        typeof globals.Set.prototype.keys !== 'function' ||
+        typeof globals.Map.prototype.forEach !== 'function' ||
+        typeof globals.Set.prototype.forEach !== 'function' ||
+        isCallableWithoutNew(globals.Map) ||
+        isCallableWithoutNew(globals.Set) ||
+        !supportsSubclassing(globals.Map, function (M) {
+          var m = new M([]);
+          // Firefox 32 is ok with the instantiating the subclass but will
+          // throw when the map is used.
+          m.set(42, 42);
+          return m instanceof M;
+        })
+      ) {
+        globals.Map = collectionShims.Map;
+        globals.Set = collectionShims.Set;
+      }
+    }
+    // Shim incomplete iterator implementations.
+    addIterator(Object.getPrototypeOf((new globals.Map()).keys()));
+    addIterator(Object.getPrototypeOf((new globals.Set()).keys()));
+  }
+
+  return globals;
+}));
+
+
+}).call(this,require('_process'))
+},{"_process":167}],8:[function(require,module,exports){
 (function (process){
 /*!
  * async
@@ -2646,7 +4686,7 @@ module.exports = {
 }());
 
 }).call(this,require('_process'))
-},{"_process":166}],8:[function(require,module,exports){
+},{"_process":167}],9:[function(require,module,exports){
 (function (process,__dirname){
 
 /**
@@ -2842,7 +4882,7 @@ Object.defineProperty(proto, 'version', {
 
 
 }).call(this,require('_process'),"/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport/node_modules/node-pre-gyp/lib")
-},{"../package":19,"./pre-binding":9,"_process":166,"child_process":136,"events":157,"fs":136,"nopt":13,"npmlog":15,"path":165,"util":186}],9:[function(require,module,exports){
+},{"../package":20,"./pre-binding":10,"_process":167,"child_process":137,"events":158,"fs":137,"nopt":14,"npmlog":16,"path":166,"util":187}],10:[function(require,module,exports){
 var fs = require('fs');
 var versioning = require('../lib/util/versioning.js')
 var existsSync = require('fs').existsSync || require('path').existsSync;
@@ -2868,7 +4908,7 @@ exports.find = function(package_json_path,opts) {
    return path.join(meta.module_path,meta.module_name + '.node');
 }
 
-},{"../lib/util/versioning.js":12,"fs":136,"path":165}],10:[function(require,module,exports){
+},{"../lib/util/versioning.js":13,"fs":137,"path":166}],11:[function(require,module,exports){
 module.exports={
   "0.6.3": {
     "node_abi": 1,
@@ -3336,7 +5376,7 @@ module.exports={
   }
 }
 
-},{}],11:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 module.exports={
   "0.10.0": "0.11.13",
   "0.10.0-rc1": "0.11.13",
@@ -3365,7 +5405,7 @@ module.exports={
   "0.4.2": "0.8.17"
 }
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 (function (process){
 
 module.exports = exports;
@@ -3527,7 +5567,7 @@ module.exports.evaluate = function(package_json,options) {
 }
 
 }).call(this,require('_process'))
-},{"./abi_crosswalk.json":10,"./nw_crosswalk.json":11,"_process":166,"path":165,"semver":18,"url":184}],13:[function(require,module,exports){
+},{"./abi_crosswalk.json":11,"./nw_crosswalk.json":12,"_process":167,"path":166,"semver":19,"url":185}],14:[function(require,module,exports){
 (function (process){
 // info about each config option.
 
@@ -3943,7 +5983,7 @@ function resolveShort (arg, shorthands, shortAbbr, abbrevs) {
 }
 
 }).call(this,require('_process'))
-},{"_process":166,"abbrev":14,"path":165,"stream":182,"url":184}],14:[function(require,module,exports){
+},{"_process":167,"abbrev":15,"path":166,"stream":183,"url":185}],15:[function(require,module,exports){
 
 module.exports = exports = abbrev.abbrev = abbrev
 
@@ -4007,7 +6047,7 @@ function lexSort (a, b) {
   return a === b ? 0 : a > b ? 1 : -1
 }
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 (function (process){
 var EE = require('events').EventEmitter
 var log = exports = module.exports = new EE
@@ -4165,7 +6205,7 @@ log.addLevel('error', 5000, { fg: 'red', bg: 'black' }, 'ERR!')
 log.addLevel('silent', Infinity)
 
 }).call(this,require('_process'))
-},{"_process":166,"ansi":16,"events":157,"util":186}],16:[function(require,module,exports){
+},{"_process":167,"ansi":17,"events":158,"util":187}],17:[function(require,module,exports){
 
 /**
  * References:
@@ -4572,7 +6612,7 @@ function toArray (a) {
   return rtn
 }
 
-},{"./newlines":17}],17:[function(require,module,exports){
+},{"./newlines":18}],18:[function(require,module,exports){
 
 /**
  * Accepts any node Stream instance and hijacks its "write()" function,
@@ -4645,7 +6685,7 @@ function processByte (stream, b) {
   }
 }
 
-},{"assert":137}],18:[function(require,module,exports){
+},{"assert":138}],19:[function(require,module,exports){
 ;(function(exports) {
 
 // export the class if we are in a Node-like system.
@@ -5686,7 +7726,7 @@ if (typeof define === 'function' && define.amd)
   semver = {}
 );
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 module.exports={
   "name": "node-pre-gyp",
   "description": "Node.js native addon binary install tool",
@@ -5773,7 +7813,7 @@ module.exports={
   "readme": "ERROR: No README data found!"
 }
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 (function (Buffer){
 /*jslint node: true */
 "use strict";
@@ -5819,7 +7859,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],21:[function(require,module,exports){
+},{"buffer":140}],22:[function(require,module,exports){
 (function (process,Buffer,__dirname){
 /*jslint node: true */
 "use strict";
@@ -6379,7 +8419,7 @@ util.inherits(SerialPortFactory, EventEmitter);
 module.exports = new SerialPortFactory();
 
 }).call(this,require('_process'),require("buffer").Buffer,"/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport")
-},{"./parsers":20,"_process":166,"async":7,"buffer":139,"events":157,"fs":136,"node-pre-gyp":8,"path":165,"stream":182,"util":186}],22:[function(require,module,exports){
+},{"./parsers":21,"_process":167,"async":8,"buffer":140,"events":158,"fs":137,"node-pre-gyp":9,"path":166,"stream":183,"util":187}],23:[function(require,module,exports){
 /*
  * Analog Sensor driver
  * http://cylonjs.com
@@ -6435,7 +8475,7 @@ AnalogSensor.prototype.halt = function(callback) {
   callback();
 };
 
-},{"cylon":46}],23:[function(require,module,exports){
+},{"cylon":47}],24:[function(require,module,exports){
 /*
  * Cylon button driver
  * http://cylonjs.com
@@ -6494,7 +8534,7 @@ Button.prototype.halt = function(callback) {
   callback();
 };
 
-},{"cylon":46}],24:[function(require,module,exports){
+},{"cylon":47}],25:[function(require,module,exports){
 /*
  * Continuous Servo driver
  * http://cylonjs.com
@@ -6552,7 +8592,7 @@ ContinuousServo.prototype.counterClockwise = function() {
   return this.connection.servoWrite(this.pin, 89);
 };
 
-},{"cylon":46}],25:[function(require,module,exports){
+},{"cylon":47}],26:[function(require,module,exports){
 /*
  * DirectPin driver
  * http://cylonjs.com
@@ -6647,7 +8687,7 @@ DirectPin.prototype.pwmWrite = function(value) {
   return this.connection.pwmWrite(this.pin, value);
 };
 
-},{"cylon":46}],26:[function(require,module,exports){
+},{"cylon":47}],27:[function(require,module,exports){
 (function (__dirname){
 /*
  * SHARP IR Range Sensor driver
@@ -6737,7 +8777,7 @@ IrRangeSensor.prototype.range = function() {
 };
 
 }).call(this,"/node_modules/cylon-gpio/lib")
-},{"cylon":46,"path":165}],27:[function(require,module,exports){
+},{"cylon":47,"path":166}],28:[function(require,module,exports){
 /*
  * LED driver
  * http://cylonjs.com
@@ -6831,7 +8871,7 @@ Led.prototype.isOn = function(){
   return this.isHigh;
 };
 
-},{"cylon":46}],28:[function(require,module,exports){
+},{"cylon":47}],29:[function(require,module,exports){
 /*
  * Cylon Makey Button driver
  * http://cylonjs.com
@@ -6898,7 +8938,7 @@ MakeyButton.prototype.averageData = function() {
   return result;
 };
 
-},{"cylon":46}],29:[function(require,module,exports){
+},{"cylon":47}],30:[function(require,module,exports){
 /*
  * Maxbotix ultrasonic rangefinder driver
  * http://cylonjs.com
@@ -6958,7 +8998,7 @@ Maxbotix.prototype.rangeCm = function() {
   return (this.analogValue / 2.0) * 2.54;
 };
 
-},{"cylon":46}],30:[function(require,module,exports){
+},{"cylon":47}],31:[function(require,module,exports){
 /*
  * Motor driver
  * http://cylonjs.com
@@ -7048,7 +9088,7 @@ Motor.prototype.speed = function(value) {
   this.isOn = this.speedValue > 0;
 };
 
-},{"cylon":46}],31:[function(require,module,exports){
+},{"cylon":47}],32:[function(require,module,exports){
 /*
  * Servo driver
  * http://cylonjs.com
@@ -7126,7 +9166,7 @@ Servo.prototype.safeAngle = function(value) {
   return value;
 };
 
-},{"cylon":46}],32:[function(require,module,exports){
+},{"cylon":47}],33:[function(require,module,exports){
 /*
  * BlinkM driver
  * http://cylonjs.com
@@ -7324,7 +9364,7 @@ BlinkM.prototype.getFirmware = function(cb) {
   return this.connection.i2cRead(this.address, GET_FIRMWARE, 1, cb);
 };
 
-},{"cylon":46}],33:[function(require,module,exports){
+},{"cylon":47}],34:[function(require,module,exports){
 /*
  * MPL115A2 I2C Barometric Pressure + Temperature sensor driver
  * http://cylonjs.com
@@ -7564,7 +9604,7 @@ Bmp180.prototype.getRawPressure = function(mode, callback) {
     });
 };
 
-},{"cylon":46}],34:[function(require,module,exports){
+},{"cylon":47}],35:[function(require,module,exports){
 (function (Buffer){
 /*
  * HMC6352 Digital Compass driver
@@ -7630,7 +9670,7 @@ Hmc6352.prototype.parseHeading = function(val) {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139,"cylon":46}],35:[function(require,module,exports){
+},{"buffer":140,"cylon":47}],36:[function(require,module,exports){
 /*
  * LCD display driver
  * http://cylonjs.com
@@ -7839,7 +9879,7 @@ LCD.prototype._sendData = function(val, mode) {
   this._write4bits(lownib | mode);
 };
 
-},{"cylon":46}],36:[function(require,module,exports){
+},{"cylon":47}],37:[function(require,module,exports){
 "use strict";
 
 var Cylon = require('cylon');
@@ -7984,7 +10024,7 @@ LSM9DS0G.prototype._initGyro = function() {
   this.connection.i2cWrite(this.address, CTRL_REG5_G, 0x00);
 }
 
-},{"cylon":46}],37:[function(require,module,exports){
+},{"cylon":47}],38:[function(require,module,exports){
 "use strict";
 
 var Cylon = require('cylon');
@@ -8194,7 +10234,7 @@ LSM9DS0XM.prototype._initMag = function() {
   this.connection.i2cWrite(this.address, INT_CTRL_REG_M, 0x09); // Enable interrupts for mag, active-low, push-pull
 };
 
-},{"cylon":46}],38:[function(require,module,exports){
+},{"cylon":47}],39:[function(require,module,exports){
 /*
  * MPL115A2 I2C Barometric Pressure + Temperature sensor driver
  * http://cylonjs.com
@@ -8286,7 +10326,7 @@ Mpl115A2.prototype.getPT = function(callback) {
 Mpl115A2.prototype.getPressure = Mpl115A2.prototype.getPT;
 Mpl115A2.prototype.getTemperature = Mpl115A2.prototype.getPT;
 
-},{"cylon":46}],39:[function(require,module,exports){
+},{"cylon":47}],40:[function(require,module,exports){
 /*
  * MPU6050 I2C Barometric Pressure + Temperature sensor driver
  * http://cylonjs.com
@@ -8418,7 +10458,7 @@ Mpu6050.prototype.makeSignedInteger = function (highBits, lowBits) {
   return value;
 };
 
-},{"cylon":46}],40:[function(require,module,exports){
+},{"cylon":47}],41:[function(require,module,exports){
 /*
  * adaptor
  * cylonjs.com
@@ -8449,7 +10489,7 @@ var Adaptor = module.exports = function Adaptor(opts) {
 
 Utils.subclass(Adaptor, Basestar);
 
-},{"./basestar":43,"./logger":51,"./utils":60}],41:[function(require,module,exports){
+},{"./basestar":44,"./logger":52,"./utils":61}],42:[function(require,module,exports){
 (function (__dirname){
 /*
  * Cylon API
@@ -8513,7 +10553,7 @@ var API = module.exports = function API(opts) {
 
   // error handling
   this.express.use(function(err, req, res, next) {
-    res.json(500, { error: err.message || "An error occured."})
+    res.status(500).json({ error: err.message || "An error occured."})
   });
 };
 
@@ -8573,7 +10613,7 @@ API.prototype.listen = function() {
 };
 
 }).call(this,"/node_modules/cylon/lib")
-},{"./api/routes":42,"./logger":51,"body-parser":62,"express":67,"fs":136,"https":162,"path":165}],42:[function(require,module,exports){
+},{"./api/routes":43,"./logger":52,"body-parser":63,"express":68,"fs":137,"https":163,"path":166}],43:[function(require,module,exports){
 /*
  * Cylon API - Route Definitions
  * cylonjs.com
@@ -8596,21 +10636,21 @@ var load = function load(req, res, next) {
   if (robot) {
     req.robot = Cylon.robots[robot];
     if (!req.robot) {
-      return res.json(404, { error: "No Robot found with the name " + robot });
+      return res.status(404).json({ error: "No Robot found with the name " + robot });
     }
   }
 
   if (device) {
     req.device = req.robot.devices[device];
     if (!req.device) {
-      return res.json(404, { error: "No device found with the name " + device });
+      return res.status(404).json({ error: "No device found with the name " + device });
     }
   }
 
   if (connection) {
     req.connection = req.robot.connections[connection];
     if (!req.connection) {
-      return res.json(404, { error: "No connection found with the name " + connection });
+      return res.status(404).json({ error: "No connection found with the name " + connection });
     }
   }
 
@@ -8695,7 +10735,7 @@ router.get("/robots/:robot/connections/:connection", load, function(req, res) {
   res.json({ connection: req.connection });
 });
 
-},{"../cylon":46,"express":67}],43:[function(require,module,exports){
+},{"../cylon":47,"express":68}],44:[function(require,module,exports){
 /*
  * basestar
  * cylonjs.com
@@ -8796,7 +10836,7 @@ Basestar.prototype._proxyEvents = function(opts, source, target) {
   return this.defineEvent(opts);
 }
 
-},{"./utils":60,"events":157}],44:[function(require,module,exports){
+},{"./utils":61,"events":158}],45:[function(require,module,exports){
 /*
  * Cylon - Internal Configuration
  * cylonjs.com
@@ -8808,10 +10848,13 @@ Basestar.prototype._proxyEvents = function(opts, source, target) {
 'use strict';
 
 module.exports = {
-  logging: {}
+  logging: {},
+
+  // are we in TDR test mode? Used to stub out adaptors/drivers.
+  testMode: false
 };
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 (function (process){
 /*
  * connection
@@ -8826,10 +10869,13 @@ module.exports = {
 var EventEmitter = require('events').EventEmitter;
 
 var Registry = require('./registry'),
+    Config = require('./config'),
     Logger = require('./logger'),
     Utils = require('./utils');
 
-var testMode = process.env.NODE_ENV === 'test' && !CYLON_TEST;
+var testMode = function() {
+  return process.env.NODE_ENV === 'test' && Config.testMode;
+};
 
 // Public: Creates a new Connection
 //
@@ -8853,7 +10899,7 @@ var Connection = module.exports = function Connection(opts) {
   this.details = {};
 
   for (var opt in opts) {
-    if (['robot', 'name', 'adaptor'].indexOf(opt) < 0) {
+    if (['robot', 'name', 'adaptor', 'connection'].indexOf(opt) < 0) {
       this.details[opt] = opts[opt];
     }
   }
@@ -8922,7 +10968,7 @@ Connection.prototype.initAdaptor = function(opts) {
 
   var adaptor = module.adaptor(opts);
 
-  if (testMode) {
+  if (testMode()) {
     var testAdaptor = Registry.findByAdaptor('test').adaptor(opts);
 
     for (var prop in adaptor) {
@@ -8950,7 +10996,7 @@ Connection.prototype._logstring = function _logstring(action) {
 };
 
 }).call(this,require('_process'))
-},{"./logger":51,"./registry":54,"./utils":60,"_process":166,"events":157}],46:[function(require,module,exports){
+},{"./config":45,"./logger":52,"./registry":55,"./utils":61,"_process":167,"events":158}],47:[function(require,module,exports){
 (function (process){
 /*
  * cylon
@@ -9112,7 +11158,7 @@ process.on("SIGINT", function() {
 });
 
 }).call(this,require('_process'))
-},{"./adaptor":40,"./api":41,"./config":44,"./driver":48,"./io/digital-pin":49,"./io/utils":50,"./logger":51,"./robot":55,"./utils":60,"_process":166,"async":61,"readline":136}],47:[function(require,module,exports){
+},{"./adaptor":41,"./api":42,"./config":45,"./driver":49,"./io/digital-pin":50,"./io/utils":51,"./logger":52,"./robot":56,"./utils":61,"_process":167,"async":62,"readline":137}],48:[function(require,module,exports){
 (function (process){
 /*
  * device
@@ -9127,10 +11173,13 @@ process.on("SIGINT", function() {
 var EventEmitter = require('events').EventEmitter;
 
 var Registry = require('./registry'),
+    Config = require('./config'),
     Logger = require('./logger'),
     Utils = require('./utils');
 
-var testMode = process.env.NODE_ENV === 'test' && !CYLON_TEST;
+var testMode = function() {
+  return process.env.NODE_ENV === 'test' && Config.testMode;
+};
 
 // Public: Creates a new Device
 //
@@ -9159,7 +11208,7 @@ var Device = module.exports = function Device(opts) {
   this.details = {};
 
   for (var opt in opts) {
-    if (['robot', 'name', 'connection', 'driver'].indexOf(opt) < 0) {
+    if (['robot', 'name', 'connection', 'driver', 'device', 'adaptor'].indexOf(opt) < 0) {
       this.details[opt] = opts[opt];
     }
   }
@@ -9236,7 +11285,7 @@ Device.prototype.initDriver = function(opts) {
 
   var driver = module.driver(opts);
 
-  if (testMode) {
+  if (testMode()) {
     var testDriver = Registry.findByDriver('test').driver(opts);
 
     for (var prop in driver) {
@@ -9252,7 +11301,7 @@ Device.prototype.initDriver = function(opts) {
 };
 
 }).call(this,require('_process'))
-},{"./logger":51,"./registry":54,"./utils":60,"_process":166,"events":157}],48:[function(require,module,exports){
+},{"./config":45,"./logger":52,"./registry":55,"./utils":61,"_process":167,"events":158}],49:[function(require,module,exports){
 /*
  * driver
  * cylonjs.com
@@ -9280,7 +11329,7 @@ var Driver = module.exports = function Driver(opts) {
   this.name = opts.name;
 
   this.device = opts.device;
-  this.connection = opts.connection;
+  this.connection = opts.device.connection;
   this.adaptor = this.connection.adaptor;
 
   this.interval = opts.interval || 10;
@@ -9314,7 +11363,7 @@ Driver.prototype.setupCommands = function(commands, proxy) {
   }
 }
 
-},{"./basestar":43,"./logger":51,"./utils":60}],49:[function(require,module,exports){
+},{"./basestar":44,"./logger":52,"./utils":61}],50:[function(require,module,exports){
 /*
  * Linux IO DigitalPin
  * cylonjs.com
@@ -9491,7 +11540,7 @@ DigitalPin.prototype._unexportPath = function() {
   return GPIO_PATH + "/unexport";
 };
 
-},{"../utils":60,"events":157,"fs":136}],50:[function(require,module,exports){
+},{"../utils":61,"events":158,"fs":137}],51:[function(require,module,exports){
 Utils = {
   // Returns { period: int, duty: int }
   // Calculated based on params value, freq, pulseWidth = { min: int, max: int }
@@ -9522,7 +11571,7 @@ Utils = {
 
 module.exports = Utils;
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 /*
  * logger
  * cylonjs.com
@@ -9604,7 +11653,7 @@ var setLogLevel = function(level) {
 Logger.setup();
 
 
-},{"./config":44,"./logger/basic_logger":52,"./logger/null_logger":53}],52:[function(require,module,exports){
+},{"./config":45,"./logger/basic_logger":53,"./logger/null_logger":54}],53:[function(require,module,exports){
 'use strict';
 
 var getArgs = function(args) {
@@ -9631,7 +11680,7 @@ var BasicLogger = module.exports = {
   };
 });
 
-},{}],53:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 // The NullLogger is designed for cases where you want absolutely nothing to
 // print to anywhere. Every proxied method from the Logger returns a noop.
 var NullLogger = module.exports = {
@@ -9642,7 +11691,7 @@ var NullLogger = module.exports = {
   NullLogger[type] = function() {};
 });
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 (function (process){
 /*
  * Registry
@@ -9761,7 +11810,7 @@ var Registry = module.exports = {
 });
 
 }).call(this,require('_process'))
-},{"./logger":51,"./test/loopback":56,"./test/ping":57,"./test/test-adaptor":58,"./test/test-driver":59,"_process":166}],55:[function(require,module,exports){
+},{"./logger":52,"./test/loopback":57,"./test/ping":58,"./test/test-adaptor":59,"./test/test-driver":60,"_process":167}],56:[function(require,module,exports){
 (function (process){
 /*
  * robot
@@ -10132,7 +12181,7 @@ Robot.prototype.toString = function() {
 };
 
 }).call(this,require('_process'))
-},{"./config":44,"./connection":45,"./device":47,"./logger":51,"./utils":60,"_process":166,"async":61,"events":157}],56:[function(require,module,exports){
+},{"./config":45,"./connection":46,"./device":48,"./logger":52,"./utils":61,"_process":167,"async":62,"events":158}],57:[function(require,module,exports){
 /*
  * Loopback adaptor
  * cylonjs.com
@@ -10165,7 +12214,7 @@ Loopback.prototype.disconnect = function(callback) {
 Loopback.adaptors = ['loopback'];
 Loopback.adaptor = function(opts) { return new Loopback(opts); };
 
-},{"../adaptor":40,"../utils":60}],57:[function(require,module,exports){
+},{"../adaptor":41,"../utils":61}],58:[function(require,module,exports){
 /*
  * Ping driver
  * cylonjs.com
@@ -10205,7 +12254,7 @@ Ping.prototype.halt = function(callback) {
 Ping.drivers = ['ping'];
 Ping.driver = function(opts) { return new Ping(opts); };
 
-},{"../driver":48,"../utils":60}],58:[function(require,module,exports){
+},{"../driver":49,"../utils":61}],59:[function(require,module,exports){
 /*
  * Test adaptor
  * cylonjs.com
@@ -10230,7 +12279,7 @@ Utils.subclass(TestAdaptor, Adaptor);
 TestAdaptor.adaptors = ['test'];
 TestAdaptor.adaptor = function(opts) { return new TestAdaptor(opts); };
 
-},{"../adaptor":40,"../utils":60}],59:[function(require,module,exports){
+},{"../adaptor":41,"../utils":61}],60:[function(require,module,exports){
 /*
  * Test driver
  * cylonjs.com
@@ -10255,7 +12304,7 @@ Utils.subclass(TestDriver, Driver);
 TestDriver.drivers = ['test'];
 TestDriver.driver = function(opts) { return new TestDriver(opts); };
 
-},{"../driver":48,"../utils":60}],60:[function(require,module,exports){
+},{"../driver":49,"../utils":61}],61:[function(require,module,exports){
 (function (global){
 /*
  * Cylon - Utils
@@ -10595,9 +12644,9 @@ var addCoreExtensions = function addCoreExtensions() {
 Utils.bootstrap();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],61:[function(require,module,exports){
-module.exports=require(7)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport/node_modules/async/lib/async.js":7,"_process":166}],62:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
+module.exports=require(8)
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport/node_modules/async/lib/async.js":8,"_process":167}],63:[function(require,module,exports){
 (function (__dirname){
 /*!
  * body-parser
@@ -10685,7 +12734,7 @@ function bodyParser(options){
 }
 
 }).call(this,"/node_modules/cylon/node_modules/body-parser")
-},{"depd":63,"fs":136,"path":165}],63:[function(require,module,exports){
+},{"depd":64,"fs":137,"path":166}],64:[function(require,module,exports){
 (function (process){
 /*!
  * depd
@@ -11211,7 +13260,7 @@ function DeprecationError(namespace, message, stack) {
 }
 
 }).call(this,require('_process'))
-},{"./lib/compat":66,"_process":166,"events":157,"path":165}],64:[function(require,module,exports){
+},{"./lib/compat":67,"_process":167,"events":158,"path":166}],65:[function(require,module,exports){
 (function (Buffer){
 /*!
  * depd
@@ -11248,7 +13297,7 @@ function bufferConcat(bufs) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],65:[function(require,module,exports){
+},{"buffer":140}],66:[function(require,module,exports){
 /*!
  * depd
  * Copyright(c) 2014 Douglas Christopher Wilson
@@ -11351,7 +13400,7 @@ function getConstructorName(obj) {
   return (receiver.constructor && receiver.constructor.name) || null
 }
 
-},{}],66:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 (function (Buffer){
 /*!
  * depd
@@ -11424,11 +13473,11 @@ function toString(obj) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./buffer-concat":64,"./callsite-tostring":65,"buffer":139}],67:[function(require,module,exports){
+},{"./buffer-concat":65,"./callsite-tostring":66,"buffer":140}],68:[function(require,module,exports){
 
 module.exports = require('./lib/express');
 
-},{"./lib/express":69}],68:[function(require,module,exports){
+},{"./lib/express":70}],69:[function(require,module,exports){
 (function (process){
 /**
  * Module dependencies.
@@ -12000,7 +14049,7 @@ function logerror(err){
 }
 
 }).call(this,require('_process'))
-},{"./middleware/init":70,"./middleware/query":71,"./router":74,"./utils":77,"./view":78,"_process":166,"debug":86,"depd":89,"finalhandler":105,"http":158,"methods":108,"path":165,"utils-merge":133}],69:[function(require,module,exports){
+},{"./middleware/init":71,"./middleware/query":72,"./router":75,"./utils":78,"./view":79,"_process":167,"debug":87,"depd":90,"finalhandler":106,"http":159,"methods":109,"path":166,"utils-merge":134}],70:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -12095,7 +14144,7 @@ exports.static = require('serve-static');
   });
 });
 
-},{"./application":68,"./middleware/query":71,"./request":72,"./response":73,"./router":74,"./router/route":76,"events":157,"serve-static":128,"utils-merge":133}],70:[function(require,module,exports){
+},{"./application":69,"./middleware/query":72,"./request":73,"./response":74,"./router":75,"./router/route":77,"events":158,"serve-static":129,"utils-merge":134}],71:[function(require,module,exports){
 /**
  * Initialization middleware, exposing the
  * request and response to eachother, as well
@@ -12123,7 +14172,7 @@ exports.init = function(app){
 };
 
 
-},{}],71:[function(require,module,exports){
+},{}],72:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -12155,7 +14204,7 @@ module.exports = function query(options) {
   };
 };
 
-},{"parseurl":111,"qs":116}],72:[function(require,module,exports){
+},{"parseurl":112,"qs":117}],73:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -12617,7 +14666,7 @@ function defineGetter(obj, name, getter) {
   });
 };
 
-},{"accepts":79,"depd":89,"fresh":106,"http":158,"net":136,"parseurl":111,"proxy-addr":113,"range-parser":121,"type-is":129}],73:[function(require,module,exports){
+},{"accepts":80,"depd":90,"fresh":107,"http":159,"net":137,"parseurl":112,"proxy-addr":114,"range-parser":122,"type-is":130}],74:[function(require,module,exports){
 (function (Buffer){
 /**
  * Module dependencies.
@@ -13588,7 +15637,7 @@ function sendfile(res, file, options, callback) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":77,"buffer":139,"cookie":85,"cookie-signature":84,"depd":89,"escape-html":93,"http":158,"on-finished":109,"path":165,"send":122,"utils-merge":133,"vary":134}],74:[function(require,module,exports){
+},{"./utils":78,"buffer":140,"cookie":86,"cookie-signature":85,"depd":90,"escape-html":94,"http":159,"on-finished":110,"path":166,"send":123,"utils-merge":134,"vary":135}],75:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -14166,7 +16215,7 @@ function wrap(old, fn) {
   };
 }
 
-},{"../utils":77,"./layer":75,"./route":76,"debug":86,"methods":108,"parseurl":111,"utils-merge":133}],75:[function(require,module,exports){
+},{"../utils":78,"./layer":76,"./route":77,"debug":87,"methods":109,"parseurl":112,"utils-merge":134}],76:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -14327,7 +16376,7 @@ function decode_param(val){
   }
 }
 
-},{"debug":86,"path-to-regexp":112}],76:[function(require,module,exports){
+},{"debug":87,"path-to-regexp":113}],77:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -14504,7 +16553,7 @@ methods.forEach(function(method){
   };
 });
 
-},{"../utils":77,"./layer":75,"debug":86,"methods":108}],77:[function(require,module,exports){
+},{"../utils":78,"./layer":76,"debug":87,"methods":109}],78:[function(require,module,exports){
 (function (Buffer){
 /**
  * Module dependencies.
@@ -14799,7 +16848,7 @@ function newObject() {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139,"etag":94,"media-typer":107,"path":165,"proxy-addr":113,"qs":116,"querystring":170,"send":122}],78:[function(require,module,exports){
+},{"buffer":140,"etag":95,"media-typer":108,"path":166,"proxy-addr":114,"qs":117,"querystring":171,"send":123}],79:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -14878,7 +16927,7 @@ View.prototype.render = function(options, fn){
   this.engine(this.path, options, fn);
 };
 
-},{"./utils":77,"fs":136,"path":165}],79:[function(require,module,exports){
+},{"./utils":78,"fs":137,"path":166}],80:[function(require,module,exports){
 var Negotiator = require('negotiator')
 var mime = require('mime-types')
 
@@ -15040,7 +17089,7 @@ function validMime(type) {
   return typeof type === 'string';
 }
 
-},{"mime-types":80,"negotiator":83}],80:[function(require,module,exports){
+},{"mime-types":81,"negotiator":84}],81:[function(require,module,exports){
 
 var db = require('mime-db')
 
@@ -15105,7 +17154,7 @@ exports.contentType = function (type) {
   return type
 }
 
-},{"mime-db":82}],81:[function(require,module,exports){
+},{"mime-db":83}],82:[function(require,module,exports){
 module.exports={
   "application/1d-interleaved-parityfec": {
     "source": "iana"
@@ -21432,7 +23481,7 @@ module.exports={
   }
 }
 
-},{}],82:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 /*!
  * mime-db
  * Copyright(c) 2014 Jonathan Ong
@@ -21445,7 +23494,7 @@ module.exports={
 
 module.exports = require('./db.json')
 
-},{"./db.json":81}],83:[function(require,module,exports){
+},{"./db.json":82}],84:[function(require,module,exports){
 module.exports = Negotiator;
 Negotiator.Negotiator = Negotiator;
 
@@ -21484,7 +23533,7 @@ Object.keys(set).forEach(function (k) {
   Negotiator.prototype['preferred'+capitalize(singular)] = Negotiator.prototype[singular];
 })
 
-},{}],84:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 /**
  * Module dependencies.
  */
@@ -21537,7 +23586,7 @@ function sha1(str){
   return crypto.createHash('sha1').update(str).digest('hex');
 }
 
-},{"crypto":146}],85:[function(require,module,exports){
+},{"crypto":147}],86:[function(require,module,exports){
 
 /// Serialize the a name value pair into a cookie string suitable for
 /// http headers. An optional options object specified cookie parameters
@@ -21614,7 +23663,7 @@ var decode = decodeURIComponent;
 module.exports.serialize = serialize;
 module.exports.parse = parse;
 
-},{}],86:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 
 /**
  * This is the web browser implementation of `debug()`.
@@ -21763,7 +23812,7 @@ function load() {
 
 exports.enable(load());
 
-},{"./debug":87}],87:[function(require,module,exports){
+},{"./debug":88}],88:[function(require,module,exports){
 
 /**
  * This is the common logic for both the Node.js and web browser
@@ -21962,7 +24011,7 @@ function coerce(val) {
   return val;
 }
 
-},{"ms":88}],88:[function(require,module,exports){
+},{"ms":89}],89:[function(require,module,exports){
 /**
  * Helpers.
  */
@@ -22075,15 +24124,15 @@ function plural(ms, n, name) {
   return Math.ceil(ms / n) + ' ' + name + 's';
 }
 
-},{}],89:[function(require,module,exports){
-module.exports=require(63)
-},{"./lib/compat":92,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/index.js":63,"_process":166,"events":157,"path":165}],90:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 module.exports=require(64)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/buffer-concat.js":64,"buffer":139}],91:[function(require,module,exports){
+},{"./lib/compat":93,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/index.js":64,"_process":167,"events":158,"path":166}],91:[function(require,module,exports){
 module.exports=require(65)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/callsite-tostring.js":65}],92:[function(require,module,exports){
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/buffer-concat.js":65,"buffer":140}],92:[function(require,module,exports){
 module.exports=require(66)
-},{"./buffer-concat":90,"./callsite-tostring":91,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/index.js":66,"buffer":139}],93:[function(require,module,exports){
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/callsite-tostring.js":66}],93:[function(require,module,exports){
+module.exports=require(67)
+},{"./buffer-concat":91,"./callsite-tostring":92,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/body-parser/node_modules/depd/lib/compat/index.js":67,"buffer":140}],94:[function(require,module,exports){
 /**
  * Escape special characters in the given string of html.
  *
@@ -22101,7 +24150,7 @@ module.exports = function(html) {
     .replace(/>/g, '&gt;');
 }
 
-},{}],94:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 (function (Buffer){
 /*!
  * etag
@@ -22266,7 +24315,7 @@ function weakhash(buf) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139,"crc":104,"crypto":146,"fs":136}],95:[function(require,module,exports){
+},{"buffer":140,"crc":105,"crypto":147,"fs":137}],96:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, create;
 
@@ -22289,7 +24338,7 @@ module.exports = create(function(buf, previous) {
   return crc % 256;
 });
 
-},{"./create":103,"buffer":139}],96:[function(require,module,exports){
+},{"./create":104,"buffer":140}],97:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22316,7 +24365,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],97:[function(require,module,exports){
+},{"./create":104,"buffer":140}],98:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22343,7 +24392,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],98:[function(require,module,exports){
+},{"./create":104,"buffer":140}],99:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22370,7 +24419,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],99:[function(require,module,exports){
+},{"./create":104,"buffer":140}],100:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22397,7 +24446,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],100:[function(require,module,exports){
+},{"./create":104,"buffer":140}],101:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22424,7 +24473,7 @@ module.exports = create(function(buf, previous) {
   return crc ^ -1;
 });
 
-},{"./create":103,"buffer":139}],101:[function(require,module,exports){
+},{"./create":104,"buffer":140}],102:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22451,7 +24500,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],102:[function(require,module,exports){
+},{"./create":104,"buffer":140}],103:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 var Buffer, TABLE, create;
 
@@ -22478,7 +24527,7 @@ module.exports = create(function(buf, previous) {
   return crc;
 });
 
-},{"./create":103,"buffer":139}],103:[function(require,module,exports){
+},{"./create":104,"buffer":140}],104:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 module.exports = function(calc) {
   var fn;
@@ -22490,7 +24539,7 @@ module.exports = function(calc) {
   return fn;
 };
 
-},{}],104:[function(require,module,exports){
+},{}],105:[function(require,module,exports){
 // Generated by CoffeeScript 1.7.1
 module.exports = {
   crc1: require('./crc1'),
@@ -22503,7 +24552,7 @@ module.exports = {
   crc32: require('./crc32')
 };
 
-},{"./crc1":95,"./crc16":96,"./crc16_ccitt":97,"./crc16_modbus":98,"./crc24":99,"./crc32":100,"./crc8":101,"./crc8_1wire":102}],105:[function(require,module,exports){
+},{"./crc1":96,"./crc16":97,"./crc16_ccitt":98,"./crc16_modbus":99,"./crc24":100,"./crc32":101,"./crc8":102,"./crc8_1wire":103}],106:[function(require,module,exports){
 (function (process,Buffer){
 /*!
  * finalhandler
@@ -22670,7 +24719,7 @@ function unpipe(stream) {
 }
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":166,"buffer":139,"debug":86,"escape-html":93,"http":158}],106:[function(require,module,exports){
+},{"_process":167,"buffer":140,"debug":87,"escape-html":94,"http":159}],107:[function(require,module,exports){
 
 /**
  * Expose `fresh()`.
@@ -22724,7 +24773,7 @@ function fresh(req, res) {
 
   return !! (etagMatches && notModified);
 }
-},{}],107:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 /*!
  * media-typer
  * Copyright(c) 2014 Douglas Christopher Wilson
@@ -22996,7 +25045,7 @@ function splitType(string) {
   return obj
 }
 
-},{}],108:[function(require,module,exports){
+},{}],109:[function(require,module,exports){
 
 var http = require('http');
 
@@ -23039,7 +25088,7 @@ if (http.METHODS) {
 
 }
 
-},{"http":158}],109:[function(require,module,exports){
+},{"http":159}],110:[function(require,module,exports){
 (function (process){
 /*!
  * on-finished
@@ -23234,7 +25283,7 @@ function patchAssignSocket(res, callback) {
 }
 
 }).call(this,require('_process'))
-},{"_process":166,"ee-first":110}],110:[function(require,module,exports){
+},{"_process":167,"ee-first":111}],111:[function(require,module,exports){
 
 module.exports = function first(stuff, done) {
   if (!Array.isArray(stuff))
@@ -23304,7 +25353,7 @@ function listener(event, done) {
   }
 }
 
-},{}],111:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 /*!
  * parseurl
  * Copyright(c) 2014 Jonathan Ong
@@ -23442,7 +25491,7 @@ function fresh(url, parsedUrl) {
     && parsedUrl._raw === url
 }
 
-},{"url":184}],112:[function(require,module,exports){
+},{"url":185}],113:[function(require,module,exports){
 /**
  * Expose `pathtoRegexp`.
  */
@@ -23514,7 +25563,7 @@ function pathtoRegexp(path, keys, options) {
   return new RegExp(path, flags);
 };
 
-},{}],113:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 /*!
  * proxy-addr
  * Copyright(c) 2014 Douglas Christopher Wilson
@@ -23861,7 +25910,7 @@ function trustSingle(subnet) {
   };
 }
 
-},{"forwarded":114,"ipaddr.js":115}],114:[function(require,module,exports){
+},{"forwarded":115,"ipaddr.js":116}],115:[function(require,module,exports){
 /*!
  * forwarded
  * Copyright(c) 2014 Douglas Christopher Wilson
@@ -23898,7 +25947,7 @@ function forwarded(req) {
   return addrs
 }
 
-},{}],115:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 (function() {
   var expandIPv6, ipaddr, ipv4Part, ipv4Regexes, ipv6Part, ipv6Regexes, matchCIDR, root;
 
@@ -24301,10 +26350,10 @@ function forwarded(req) {
 
 }).call(this);
 
-},{}],116:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module.exports = require('./lib');
 
-},{"./lib":117}],117:[function(require,module,exports){
+},{"./lib":118}],118:[function(require,module,exports){
 // Load modules
 
 var Stringify = require('./stringify');
@@ -24321,7 +26370,7 @@ module.exports = {
     parse: Parse
 };
 
-},{"./parse":118,"./stringify":119}],118:[function(require,module,exports){
+},{"./parse":119,"./stringify":120}],119:[function(require,module,exports){
 // Load modules
 
 var Utils = require('./utils');
@@ -24479,7 +26528,7 @@ module.exports = function (str, options) {
     return Utils.compact(obj);
 };
 
-},{"./utils":120}],119:[function(require,module,exports){
+},{"./utils":121}],120:[function(require,module,exports){
 // Load modules
 
 var Utils = require('./utils');
@@ -24539,7 +26588,7 @@ module.exports = function (obj, options) {
     return keys.join(delimiter);
 };
 
-},{"./utils":120}],120:[function(require,module,exports){
+},{"./utils":121}],121:[function(require,module,exports){
 (function (Buffer){
 // Load modules
 
@@ -24682,7 +26731,7 @@ exports.isBuffer = function (obj) {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],121:[function(require,module,exports){
+},{"buffer":140}],122:[function(require,module,exports){
 
 /**
  * Parse "Range" header `str` relative to the given file `size`.
@@ -24733,7 +26782,7 @@ module.exports = function(size, str){
   return valid ? arr : -1;
 };
 
-},{}],122:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 
 /**
  * Module dependencies.
@@ -25508,7 +27557,7 @@ function normalizeList(val){
   return [].concat(val || [])
 }
 
-},{"debug":86,"depd":89,"destroy":123,"escape-html":93,"etag":94,"events":157,"fresh":106,"fs":136,"http":158,"mime":124,"ms":125,"on-finished":126,"path":165,"range-parser":121,"stream":182}],123:[function(require,module,exports){
+},{"debug":87,"depd":90,"destroy":124,"escape-html":94,"etag":95,"events":158,"fresh":107,"fs":137,"http":159,"mime":125,"ms":126,"on-finished":127,"path":166,"range-parser":122,"stream":183}],124:[function(require,module,exports){
 var ReadStream = require('fs').ReadStream
 var Stream = require('stream')
 
@@ -25546,7 +27595,7 @@ function onopenClose() {
   }
 }
 
-},{"fs":136,"stream":182}],124:[function(require,module,exports){
+},{"fs":137,"stream":183}],125:[function(require,module,exports){
 (function (process,__dirname){
 var path = require('path');
 var fs = require('fs');
@@ -25664,9 +27713,9 @@ mime.charsets = {
 module.exports = mime;
 
 }).call(this,require('_process'),"/node_modules/cylon/node_modules/express/node_modules/send/node_modules/mime")
-},{"_process":166,"fs":136,"path":165}],125:[function(require,module,exports){
-module.exports=require(88)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/debug/node_modules/ms/index.js":88}],126:[function(require,module,exports){
+},{"_process":167,"fs":137,"path":166}],126:[function(require,module,exports){
+module.exports=require(89)
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/debug/node_modules/ms/index.js":89}],127:[function(require,module,exports){
 (function (process){
 /*!
  * on-finished
@@ -25797,7 +27846,7 @@ function createListener(msg) {
 }
 
 }).call(this,require('_process'))
-},{"_process":166,"ee-first":127}],127:[function(require,module,exports){
+},{"_process":167,"ee-first":128}],128:[function(require,module,exports){
 
 module.exports = function first(stuff, done) {
   if (!Array.isArray(stuff))
@@ -25859,7 +27908,7 @@ function listener(event, done) {
   }
 }
 
-},{}],128:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 /*!
  * serve-static
  * Copyright(c) 2010 Sencha Inc.
@@ -25979,7 +28028,7 @@ exports = module.exports = function serveStatic(root, options) {
 
 exports.mime = send.mime
 
-},{"escape-html":93,"parseurl":111,"path":165,"send":122,"url":184,"utils-merge":133}],129:[function(require,module,exports){
+},{"escape-html":94,"parseurl":112,"path":166,"send":123,"url":185,"utils-merge":134}],130:[function(require,module,exports){
 
 var typer = require('media-typer')
 var mime = require('mime-types')
@@ -26207,13 +28256,13 @@ function typenormalize(value) {
   }
 }
 
-},{"media-typer":107,"mime-types":130}],130:[function(require,module,exports){
-module.exports=require(80)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/index.js":80,"mime-db":132}],131:[function(require,module,exports){
+},{"media-typer":108,"mime-types":131}],131:[function(require,module,exports){
 module.exports=require(81)
-},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/node_modules/mime-db/db.json":81}],132:[function(require,module,exports){
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/index.js":81,"mime-db":133}],132:[function(require,module,exports){
 module.exports=require(82)
-},{"./db.json":131,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/node_modules/mime-db/index.js":82}],133:[function(require,module,exports){
+},{"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/node_modules/mime-db/db.json":82}],133:[function(require,module,exports){
+module.exports=require(83)
+},{"./db.json":132,"/Users/stewart/dev/cylon-example-chrome/node_modules/cylon/node_modules/express/node_modules/accepts/node_modules/mime-types/node_modules/mime-db/index.js":83}],134:[function(require,module,exports){
 /**
  * Merge object b with object a.
  *
@@ -26238,7 +28287,7 @@ exports = module.exports = function(a, b){
   return a;
 };
 
-},{}],134:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 /*!
  * vary
  * Copyright(c) 2014 Douglas Christopher Wilson
@@ -26352,7 +28401,7 @@ function vary(res, field) {
   res.setHeader('Vary', append(header, field));
 }
 
-},{}],135:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 (function (process){
 "use strict";
 
@@ -26386,9 +28435,9 @@ Cylon.robot({
 Cylon.start();
 
 }).call(this,require('_process'))
-},{"./browser-logger":1,"_process":166,"cylon":46}],136:[function(require,module,exports){
+},{"./browser-logger":1,"_process":167,"cylon":47}],137:[function(require,module,exports){
 
-},{}],137:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 // http://wiki.commonjs.org/wiki/Unit_Testing/1.0
 //
 // THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
@@ -26750,9 +28799,9 @@ var objectKeys = Object.keys || function (obj) {
   return keys;
 };
 
-},{"util/":186}],138:[function(require,module,exports){
-module.exports=require(136)
-},{"/usr/local/lib/node_modules/browserify/lib/_empty.js":136}],139:[function(require,module,exports){
+},{"util/":187}],139:[function(require,module,exports){
+module.exports=require(137)
+},{"/usr/local/lib/node_modules/browserify/lib/_empty.js":137}],140:[function(require,module,exports){
 /*!
  * The buffer module from node.js, for the browser.
  *
@@ -27804,7 +29853,7 @@ function decodeUtf8Char (str) {
   }
 }
 
-},{"base64-js":140,"ieee754":141,"is-array":142}],140:[function(require,module,exports){
+},{"base64-js":141,"ieee754":142,"is-array":143}],141:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -27926,7 +29975,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],141:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 exports.read = function(buffer, offset, isLE, mLen, nBytes) {
   var e, m,
       eLen = nBytes * 8 - mLen - 1,
@@ -28012,7 +30061,7 @@ exports.write = function(buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128;
 };
 
-},{}],142:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 
 /**
  * isArray
@@ -28047,7 +30096,7 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}],143:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('sha.js')
 
@@ -28081,7 +30130,7 @@ module.exports = function (alg) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"./md5":147,"buffer":139,"ripemd160":149,"sha.js":151}],144:[function(require,module,exports){
+},{"./md5":148,"buffer":140,"ripemd160":150,"sha.js":152}],145:[function(require,module,exports){
 (function (Buffer){
 var createHash = require('./create-hash')
 
@@ -28128,7 +30177,7 @@ Hmac.prototype.digest = function (enc) {
 
 
 }).call(this,require("buffer").Buffer)
-},{"./create-hash":143,"buffer":139}],145:[function(require,module,exports){
+},{"./create-hash":144,"buffer":140}],146:[function(require,module,exports){
 (function (Buffer){
 var intSize = 4;
 var zeroBuffer = new Buffer(intSize); zeroBuffer.fill(0);
@@ -28166,7 +30215,7 @@ function hash(buf, fn, hashSize, bigEndian) {
 module.exports = { hash: hash };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],146:[function(require,module,exports){
+},{"buffer":140}],147:[function(require,module,exports){
 (function (Buffer){
 var rng = require('./rng')
 
@@ -28223,7 +30272,7 @@ each(['createCredentials'
 })
 
 }).call(this,require("buffer").Buffer)
-},{"./create-hash":143,"./create-hmac":144,"./pbkdf2":155,"./rng":156,"buffer":139}],147:[function(require,module,exports){
+},{"./create-hash":144,"./create-hmac":145,"./pbkdf2":156,"./rng":157,"buffer":140}],148:[function(require,module,exports){
 /*
  * A JavaScript implementation of the RSA Data Security, Inc. MD5 Message
  * Digest Algorithm, as defined in RFC 1321.
@@ -28380,7 +30429,7 @@ module.exports = function md5(buf) {
   return helpers.hash(buf, core_md5, 16);
 };
 
-},{"./helpers":145}],148:[function(require,module,exports){
+},{"./helpers":146}],149:[function(require,module,exports){
 (function (Buffer){
 module.exports = function(crypto) {
   function pbkdf2(password, salt, iterations, keylen, digest, callback) {
@@ -28468,7 +30517,7 @@ module.exports = function(crypto) {
 }
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],149:[function(require,module,exports){
+},{"buffer":140}],150:[function(require,module,exports){
 (function (Buffer){
 
 module.exports = ripemd160
@@ -28677,7 +30726,7 @@ function ripemd160(message) {
 
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],150:[function(require,module,exports){
+},{"buffer":140}],151:[function(require,module,exports){
 module.exports = function (Buffer) {
 
   //prototype class for hash functions
@@ -28756,7 +30805,7 @@ module.exports = function (Buffer) {
   return Hash
 }
 
-},{}],151:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 var exports = module.exports = function (alg) {
   var Alg = exports[alg]
   if(!Alg) throw new Error(alg + ' is not supported (we accept pull requests)')
@@ -28770,7 +30819,7 @@ exports.sha1 = require('./sha1')(Buffer, Hash)
 exports.sha256 = require('./sha256')(Buffer, Hash)
 exports.sha512 = require('./sha512')(Buffer, Hash)
 
-},{"./hash":150,"./sha1":152,"./sha256":153,"./sha512":154,"buffer":139}],152:[function(require,module,exports){
+},{"./hash":151,"./sha1":153,"./sha256":154,"./sha512":155,"buffer":140}],153:[function(require,module,exports){
 /*
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-1, as defined
  * in FIPS PUB 180-1
@@ -28910,7 +30959,7 @@ module.exports = function (Buffer, Hash) {
   return Sha1
 }
 
-},{"util":186}],153:[function(require,module,exports){
+},{"util":187}],154:[function(require,module,exports){
 
 /**
  * A JavaScript implementation of the Secure Hash Algorithm, SHA-256, as defined
@@ -29059,7 +31108,7 @@ module.exports = function (Buffer, Hash) {
 
 }
 
-},{"util":186}],154:[function(require,module,exports){
+},{"util":187}],155:[function(require,module,exports){
 var inherits = require('util').inherits
 
 module.exports = function (Buffer, Hash) {
@@ -29305,7 +31354,7 @@ module.exports = function (Buffer, Hash) {
 
 }
 
-},{"util":186}],155:[function(require,module,exports){
+},{"util":187}],156:[function(require,module,exports){
 var pbkdf2Export = require('pbkdf2-compat/pbkdf2')
 
 module.exports = function (crypto, exports) {
@@ -29319,7 +31368,7 @@ module.exports = function (crypto, exports) {
   return exports
 }
 
-},{"pbkdf2-compat/pbkdf2":148}],156:[function(require,module,exports){
+},{"pbkdf2-compat/pbkdf2":149}],157:[function(require,module,exports){
 (function (global,Buffer){
 (function() {
   var g = ('undefined' === typeof window ? global : window) || {}
@@ -29349,7 +31398,7 @@ module.exports = function (crypto, exports) {
 }())
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"buffer":139,"crypto":138}],157:[function(require,module,exports){
+},{"buffer":140,"crypto":139}],158:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -29652,7 +31701,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],158:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 var http = module.exports;
 var EventEmitter = require('events').EventEmitter;
 var Request = require('./lib/request');
@@ -29798,7 +31847,7 @@ http.STATUS_CODES = {
     510 : 'Not Extended',               // RFC 2774
     511 : 'Network Authentication Required' // RFC 6585
 };
-},{"./lib/request":159,"events":157,"url":184}],159:[function(require,module,exports){
+},{"./lib/request":160,"events":158,"url":185}],160:[function(require,module,exports){
 var Stream = require('stream');
 var Response = require('./response');
 var Base64 = require('Base64');
@@ -30009,7 +32058,7 @@ var isXHR2Compatible = function (obj) {
     if (typeof FormData !== 'undefined' && obj instanceof FormData) return true;
 };
 
-},{"./response":160,"Base64":161,"inherits":163,"stream":182}],160:[function(require,module,exports){
+},{"./response":161,"Base64":162,"inherits":164,"stream":183}],161:[function(require,module,exports){
 var Stream = require('stream');
 var util = require('util');
 
@@ -30131,7 +32180,7 @@ var isArray = Array.isArray || function (xs) {
     return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{"stream":182,"util":186}],161:[function(require,module,exports){
+},{"stream":183,"util":187}],162:[function(require,module,exports){
 ;(function () {
 
   var object = typeof exports != 'undefined' ? exports : this; // #8: web workers
@@ -30193,7 +32242,7 @@ var isArray = Array.isArray || function (xs) {
 
 }());
 
-},{}],162:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 var http = require('http');
 
 var https = module.exports;
@@ -30208,7 +32257,7 @@ https.request = function (params, cb) {
     return http.request.call(this, params, cb);
 }
 
-},{"http":158}],163:[function(require,module,exports){
+},{"http":159}],164:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -30233,12 +32282,12 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],164:[function(require,module,exports){
+},{}],165:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],165:[function(require,module,exports){
+},{}],166:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -30466,7 +32515,7 @@ var substr = 'ab'.substr(-1) === 'b'
 ;
 
 }).call(this,require('_process'))
-},{"_process":166}],166:[function(require,module,exports){
+},{"_process":167}],167:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -30554,7 +32603,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],167:[function(require,module,exports){
+},{}],168:[function(require,module,exports){
 (function (global){
 /*! http://mths.be/punycode v1.2.4 by @mathias */
 ;(function(root) {
@@ -31065,7 +33114,7 @@ process.chdir = function (dir) {
 }(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],168:[function(require,module,exports){
+},{}],169:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31151,7 +33200,7 @@ var isArray = Array.isArray || function (xs) {
   return Object.prototype.toString.call(xs) === '[object Array]';
 };
 
-},{}],169:[function(require,module,exports){
+},{}],170:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31238,16 +33287,16 @@ var objectKeys = Object.keys || function (obj) {
   return res;
 };
 
-},{}],170:[function(require,module,exports){
+},{}],171:[function(require,module,exports){
 'use strict';
 
 exports.decode = exports.parse = require('./decode');
 exports.encode = exports.stringify = require('./encode');
 
-},{"./decode":168,"./encode":169}],171:[function(require,module,exports){
+},{"./decode":169,"./encode":170}],172:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":172}],172:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":173}],173:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -31340,7 +33389,7 @@ function forEach (xs, f) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_readable":174,"./_stream_writable":176,"_process":166,"core-util-is":177,"inherits":163}],173:[function(require,module,exports){
+},{"./_stream_readable":175,"./_stream_writable":177,"_process":167,"core-util-is":178,"inherits":164}],174:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -31388,7 +33437,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":175,"core-util-is":177,"inherits":163}],174:[function(require,module,exports){
+},{"./_stream_transform":176,"core-util-is":178,"inherits":164}],175:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -32343,7 +34392,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":172,"_process":166,"buffer":139,"core-util-is":177,"events":157,"inherits":163,"isarray":164,"stream":182,"string_decoder/":183,"util":138}],175:[function(require,module,exports){
+},{"./_stream_duplex":173,"_process":167,"buffer":140,"core-util-is":178,"events":158,"inherits":164,"isarray":165,"stream":183,"string_decoder/":184,"util":139}],176:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -32554,7 +34603,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":172,"core-util-is":177,"inherits":163}],176:[function(require,module,exports){
+},{"./_stream_duplex":173,"core-util-is":178,"inherits":164}],177:[function(require,module,exports){
 (function (process){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -33035,7 +35084,7 @@ function endWritable(stream, state, cb) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":172,"_process":166,"buffer":139,"core-util-is":177,"inherits":163,"stream":182}],177:[function(require,module,exports){
+},{"./_stream_duplex":173,"_process":167,"buffer":140,"core-util-is":178,"inherits":164,"stream":183}],178:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -33145,10 +35194,10 @@ function objectToString(o) {
   return Object.prototype.toString.call(o);
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":139}],178:[function(require,module,exports){
+},{"buffer":140}],179:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":173}],179:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":174}],180:[function(require,module,exports){
 exports = module.exports = require('./lib/_stream_readable.js');
 exports.Stream = require('stream');
 exports.Readable = exports;
@@ -33157,13 +35206,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":172,"./lib/_stream_passthrough.js":173,"./lib/_stream_readable.js":174,"./lib/_stream_transform.js":175,"./lib/_stream_writable.js":176,"stream":182}],180:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":173,"./lib/_stream_passthrough.js":174,"./lib/_stream_readable.js":175,"./lib/_stream_transform.js":176,"./lib/_stream_writable.js":177,"stream":183}],181:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":175}],181:[function(require,module,exports){
+},{"./lib/_stream_transform.js":176}],182:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":176}],182:[function(require,module,exports){
+},{"./lib/_stream_writable.js":177}],183:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -33292,7 +35341,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":157,"inherits":163,"readable-stream/duplex.js":171,"readable-stream/passthrough.js":178,"readable-stream/readable.js":179,"readable-stream/transform.js":180,"readable-stream/writable.js":181}],183:[function(require,module,exports){
+},{"events":158,"inherits":164,"readable-stream/duplex.js":172,"readable-stream/passthrough.js":179,"readable-stream/readable.js":180,"readable-stream/transform.js":181,"readable-stream/writable.js":182}],184:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -33515,7 +35564,7 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":139}],184:[function(require,module,exports){
+},{"buffer":140}],185:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -34224,14 +36273,14 @@ function isNullOrUndefined(arg) {
   return  arg == null;
 }
 
-},{"punycode":167,"querystring":170}],185:[function(require,module,exports){
+},{"punycode":168,"querystring":171}],186:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],186:[function(require,module,exports){
+},{}],187:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -34821,7 +36870,7 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":185,"_process":166,"inherits":163}],"cylon-firmata":[function(require,module,exports){
+},{"./support/isBuffer":186,"_process":167,"inherits":164}],"cylon-firmata":[function(require,module,exports){
 /*
  * cylon-firmata
  * http://cylonjs.com
@@ -34883,7 +36932,7 @@ module.exports = {
   }
 };
 
-},{"./analog-sensor":22,"./button":23,"./continuous-servo":24,"./direct-pin":25,"./ir-range-sensor":26,"./led":27,"./makey-button":28,"./maxbotix":29,"./motor":30,"./servo":31,"cylon":46}],"cylon-i2c":[function(require,module,exports){
+},{"./analog-sensor":23,"./button":24,"./continuous-servo":25,"./direct-pin":26,"./ir-range-sensor":27,"./led":28,"./makey-button":29,"./maxbotix":30,"./motor":31,"./servo":32,"cylon":47}],"cylon-i2c":[function(require,module,exports){
 /*
  * cylon-gpio
  * http://cylonjs.com
@@ -34920,4 +36969,4 @@ module.exports = {
   }
 };
 
-},{"./blinkm":32,"./bmp180":33,"./hmc6352":34,"./lcd":35,"./lsm9ds0g":36,"./lsm9ds0xm":37,"./mpl115a2":38,"./mpu6050":39,"cylon":46}]},{},[135]);
+},{"./blinkm":33,"./bmp180":34,"./hmc6352":35,"./lcd":36,"./lsm9ds0g":37,"./lsm9ds0xm":38,"./mpl115a2":39,"./mpu6050":40,"cylon":47}]},{},[136]);
