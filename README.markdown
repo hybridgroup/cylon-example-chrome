@@ -4,10 +4,6 @@ This repo contains an example of running Cylon.JS in the browser, using the [Bro
 
 It includes a custom Cylon logger to log messages directly to the page.
 
-**Note:** - currently, the `firmata` module is not compatible with Browserify, and this example will not work until a new release is cut.
-
-However, if you modify the Arduino port on line `18355` of `js/robot.js`, you should be able to run the example, as it's compiled with a fixed version of the `firmata` module.
-
 [Browserify]: http://browserify.org
 
 ## Building
