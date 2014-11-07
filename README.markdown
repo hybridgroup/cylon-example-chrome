@@ -43,14 +43,3 @@ If you start using additional Cylon modules, such as `cylon-leapmotion`, etc., y
     $ browserify -r cylon-leapmotion script.js > js/script.js
 
 This is due to the dynamic loading of modules Cylon does, which Browserify cannot automatically detect.
-
-## Running
-
-The example includes a small Node webserver, in the `bin` directory.
-
-    $ ./bin/serve
-
-The server can also be run with `npm start`.
-
-After this is started, you can visit `http://localhost:3000/` to see your Robot
-in action.
