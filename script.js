@@ -14,7 +14,7 @@ if (process.browser) {
 Cylon.robot({
   name: "BrowserBot",
 
-  connection: { name: 'arduino', adaptor: 'firmata', port: '/dev/tty.usbmodem1421' },
+  connection: { name: 'arduino', adaptor: 'firmata', port: '/dev/tty.usbmodem1411' },
   device: { name: 'led', driver: 'led', pin: 8 },
 
   work: function(my) {
