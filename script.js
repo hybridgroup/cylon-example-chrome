@@ -6,16 +6,19 @@ var Cylon = require('cylon');
 if (process.browser) {
   var Logger = require('./browser-logger');
 
-  Cylon.config({
-    logging: { logger: Logger }
-  });
+  Cylon.Logger.setup({ logger: Logger });
 }
 
 Cylon.robot({
   name: "BrowserBot",
 
-  connection: { name: 'arduino', adaptor: 'firmata', port: '/dev/tty.usbmodem1411' },
-  device: { name: 'led', driver: 'led', pin: 8 },
+  connections: {
+    arduino: { adaptor: 'firmata', port: '/dev/tty.usbmodem1411' }
+  },
+
+  devices: {
+    led: { driver: 'led', pin: 8 }
+  },
 
   work: function(my) {
     Cylon.Logger.info("Hi, my name is " + my.name)
