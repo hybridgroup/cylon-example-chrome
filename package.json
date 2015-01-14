@@ -4,11 +4,6 @@
 
   "private": true,
 
-  "scripts": {
-    "start": "node ./bin/serve",
-    "build": "browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > ./js/robot.js"
-  },
-
   "dependencies": {
     "cylon": "~0.21.0",
     "cylon-firmata": "~0.18.0"
