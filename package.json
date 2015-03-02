@@ -5,7 +5,8 @@
   "private": true,
 
   "dependencies": {
-    "cylon": "~0.22.0",
-    "cylon-firmata": "~0.19.0"
+    "cylon": "0.22.1",
+    "cylon-firmata": "0.19.0",
+    "browserify": "9.0.3"
   }
 }

@@ -1,7 +1,6 @@
-.PHONY: serve build
-
-serve:
-	@node ./bin/serve
+BIN := ./node_modules/.bin/
+.PHONY: build
 
 build:
-	@browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > ./js/robot.js
+	@echo "Building script.js with Browserify"
+	$(BIN)browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > browser.js

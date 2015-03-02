@@ -1,16 +1,22 @@
-var Logger = module.exports = {
-  log: function(args) {
-    args = args.length >= 1 ? [].slice.call(args, 0) : [];
-
-    var container = document.getElementById('log'),
-        div = document.createElement("div"),
-        text = document.createTextNode(args.join(''));
+module.exports = function(element) {
+  function logHTML(arr) {
+    var div = document.createElement("div"),
+        text = document.createTextNode(arr.join(""));
 
     div.appendChild(text);
-    container.appendChild(div);
+    element.appendChild(div);
   }
-};
 
-['debug', 'info', 'warn', 'error', 'fatal'].forEach(function(type) {
-  Logger[type] = Logger.log;
-});
+  var Logger = {
+    log: function() {
+      var args = [].slice.call(arguments, 0);
+      logHTML(args);
+    }
+  };
+
+  ['debug', 'info', 'warn', 'error', 'fatal'].forEach(function(type) {
+    Logger[type] = Logger.log;
+  });
+
+  return Logger;
+};

@@ -17,15 +17,11 @@ First, install dependencies:
 
     $ npm install
 
-If you don't have it installed already, install Browserify through NPM:
+Then, use browserify to compile your Cylon code:
 
-    $ npm install -g browserify
+    $ ./node_modules/.bin/browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > ./js/robot.js
 
-Then, use it to compile your Cylon code:
-
-    $ browserify -r cylon-gpio -r cylon-i2c -r cylon-firmata script.js > ./js/robot.js
-
-This command can also be run with `npm build`.
+This command can also be run with `make`.
 
 ## Running
 
@@ -40,6 +36,6 @@ This .video explains the process:
 
 If you start using additional Cylon modules, such as `cylon-leapmotion`, etc., you'll need to manually specify them to browserify when building your robot.
 
-    $ browserify -r cylon-leapmotion script.js > js/script.js
+    $ ./node_modules/.bin/browserify -r cylon-leapmotion script.js > js/script.js
 
 This is due to the dynamic loading of modules Cylon does, which Browserify cannot automatically detect.

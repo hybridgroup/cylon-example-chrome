@@ -1,6 +1,6 @@
 {
   "name": "Cylon - Chrome App Example",
-  "description": "Running Cylon.JS inside a Chrome app",
+  "description": "Running Cylon.js inside a Chrome app",
 
   "manifest_version": 2,
 
