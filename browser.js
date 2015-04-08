@@ -454,41 +454,36 @@ Buffer.TYPED_ARRAY_SUPPORT = (function () {
  * By augmenting the instances, we can avoid modifying the `Uint8Array`
  * prototype.
  */
-function Buffer (subject, encoding, noZero) {
-  if (!(this instanceof Buffer))
-    return new Buffer(subject, encoding, noZero)
+function Buffer (subject, encoding) {
+  var self = this
+  if (!(self instanceof Buffer)) return new Buffer(subject, encoding)
 
   var type = typeof subject
-
-  // Find the length
   var length
+
   if (type === 'number') {
     length = +subject
   } else if (type === 'string') {
     length = Buffer.byteLength(subject, encoding)
-  } else if (type === 'object' && subject !== null) { // assume object is array-like
-    if (subject.type === 'Buffer' && isArray(subject.data))
-      subject = subject.data
+  } else if (type === 'object' && subject !== null) {
+    // assume object is array-like
+    if (subject.type === 'Buffer' && isArray(subject.data)) subject = subject.data
     length = +subject.length
   } else {
     throw new TypeError('must start with number, buffer, array or string')
   }
 
-  if (length > kMaxLength)
-    throw new RangeError('Attempt to allocate Buffer larger than maximum ' +
-      'size: 0x' + kMaxLength.toString(16) + ' bytes')
+  if (length > kMaxLength) {
+    throw new RangeError('Attempt to allocate Buffer larger than maximum size: 0x' +
+      kMaxLength.toString(16) + ' bytes')
+  }
 
-  if (length < 0)
-    length = 0
-  else
-    length >>>= 0 // Coerce to uint32.
+  if (length < 0) length = 0
+  else length >>>= 0 // coerce to uint32
 
-  var self = this
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     // Preferred: Return an augmented `Uint8Array` instance for best performance
-    /*eslint-disable consistent-this */
-    self = Buffer._augment(new Uint8Array(length))
-    /*eslint-enable consistent-this */
+    self = Buffer._augment(new Uint8Array(length)) // eslint-disable-line consistent-this
   } else {
     // Fallback: Return THIS instance of Buffer (created by `new`)
     self.length = length
@@ -502,42 +497,43 @@ function Buffer (subject, encoding, noZero) {
   } else if (isArrayish(subject)) {
     // Treat array-ish objects as a byte array
     if (Buffer.isBuffer(subject)) {
-      for (i = 0; i < length; i++)
+      for (i = 0; i < length; i++) {
         self[i] = subject.readUInt8(i)
+      }
     } else {
-      for (i = 0; i < length; i++)
+      for (i = 0; i < length; i++) {
         self[i] = ((subject[i] % 256) + 256) % 256
+      }
     }
   } else if (type === 'string') {
     self.write(subject, 0, encoding)
-  } else if (type === 'number' && !Buffer.TYPED_ARRAY_SUPPORT && !noZero) {
+  } else if (type === 'number' && !Buffer.TYPED_ARRAY_SUPPORT) {
     for (i = 0; i < length; i++) {
       self[i] = 0
     }
   }
 
-  if (length > 0 && length <= Buffer.poolSize)
-    self.parent = rootParent
+  if (length > 0 && length <= Buffer.poolSize) self.parent = rootParent
 
   return self
 }
 
-function SlowBuffer (subject, encoding, noZero) {
-  if (!(this instanceof SlowBuffer))
-    return new SlowBuffer(subject, encoding, noZero)
+function SlowBuffer (subject, encoding) {
+  if (!(this instanceof SlowBuffer)) return new SlowBuffer(subject, encoding)
 
-  var buf = new Buffer(subject, encoding, noZero)
+  var buf = new Buffer(subject, encoding)
   delete buf.parent
   return buf
 }
 
-Buffer.isBuffer = function (b) {
+Buffer.isBuffer = function isBuffer (b) {
   return !!(b != null && b._isBuffer)
 }
 
-Buffer.compare = function (a, b) {
-  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b))
+Buffer.compare = function compare (a, b) {
+  if (!Buffer.isBuffer(a) || !Buffer.isBuffer(b)) {
     throw new TypeError('Arguments must be Buffers')
+  }
 
   if (a === b) return 0
 
@@ -553,7 +549,7 @@ Buffer.compare = function (a, b) {
   return 0
 }
 
-Buffer.isEncoding = function (encoding) {
+Buffer.isEncoding = function isEncoding (encoding) {
   switch (String(encoding).toLowerCase()) {
     case 'hex':
     case 'utf8':
@@ -572,8 +568,8 @@ Buffer.isEncoding = function (encoding) {
   }
 }
 
-Buffer.concat = function (list, totalLength) {
-  if (!isArray(list)) throw new TypeError('Usage: Buffer.concat(list[, length])')
+Buffer.concat = function concat (list, totalLength) {
+  if (!isArray(list)) throw new TypeError('list argument must be an Array of Buffers.')
 
   if (list.length === 0) {
     return new Buffer(0)
@@ -599,7 +595,7 @@ Buffer.concat = function (list, totalLength) {
   return buf
 }
 
-Buffer.byteLength = function (str, encoding) {
+Buffer.byteLength = function byteLength (str, encoding) {
   var ret
   str = str + ''
   switch (encoding || 'utf8') {
@@ -635,7 +631,7 @@ Buffer.prototype.length = undefined
 Buffer.prototype.parent = undefined
 
 // toString(encoding, start=0, end=buffer.length)
-Buffer.prototype.toString = function (encoding, start, end) {
+Buffer.prototype.toString = function toString (encoding, start, end) {
   var loweredCase = false
 
   start = start >>> 0
@@ -671,45 +667,84 @@ Buffer.prototype.toString = function (encoding, start, end) {
         return utf16leSlice(this, start, end)
 
       default:
-        if (loweredCase)
-          throw new TypeError('Unknown encoding: ' + encoding)
+        if (loweredCase) throw new TypeError('Unknown encoding: ' + encoding)
         encoding = (encoding + '').toLowerCase()
         loweredCase = true
     }
   }
 }
 
-Buffer.prototype.equals = function (b) {
+Buffer.prototype.equals = function equals (b) {
   if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
   if (this === b) return true
   return Buffer.compare(this, b) === 0
 }
 
-Buffer.prototype.inspect = function () {
+Buffer.prototype.inspect = function inspect () {
   var str = ''
   var max = exports.INSPECT_MAX_BYTES
   if (this.length > 0) {
     str = this.toString('hex', 0, max).match(/.{2}/g).join(' ')
-    if (this.length > max)
-      str += ' ... '
+    if (this.length > max) str += ' ... '
   }
   return '<Buffer ' + str + '>'
 }
 
-Buffer.prototype.compare = function (b) {
+Buffer.prototype.compare = function compare (b) {
   if (!Buffer.isBuffer(b)) throw new TypeError('Argument must be a Buffer')
   if (this === b) return 0
   return Buffer.compare(this, b)
 }
 
+Buffer.prototype.indexOf = function indexOf (val, byteOffset) {
+  if (byteOffset > 0x7fffffff) byteOffset = 0x7fffffff
+  else if (byteOffset < -0x80000000) byteOffset = -0x80000000
+  byteOffset >>= 0
+
+  if (this.length === 0) return -1
+  if (byteOffset >= this.length) return -1
+
+  // Negative offsets start from the end of the buffer
+  if (byteOffset < 0) byteOffset = Math.max(this.length + byteOffset, 0)
+
+  if (typeof val === 'string') {
+    if (val.length === 0) return -1 // special case: looking for empty string always fails
+    return String.prototype.indexOf.call(this, val, byteOffset)
+  }
+  if (Buffer.isBuffer(val)) {
+    return arrayIndexOf(this, val, byteOffset)
+  }
+  if (typeof val === 'number') {
+    if (Buffer.TYPED_ARRAY_SUPPORT && Uint8Array.prototype.indexOf === 'function') {
+      return Uint8Array.prototype.indexOf.call(this, val, byteOffset)
+    }
+    return arrayIndexOf(this, [ val ], byteOffset)
+  }
+
+  function arrayIndexOf (arr, val, byteOffset) {
+    var foundIndex = -1
+    for (var i = 0; byteOffset + i < arr.length; i++) {
+      if (arr[byteOffset + i] === val[foundIndex === -1 ? 0 : i - foundIndex]) {
+        if (foundIndex === -1) foundIndex = i
+        if (i - foundIndex + 1 === val.length) return byteOffset + foundIndex
+      } else {
+        foundIndex = -1
+      }
+    }
+    return -1
+  }
+
+  throw new TypeError('val must be string, number or Buffer')
+}
+
 // `get` will be removed in Node 0.13+
-Buffer.prototype.get = function (offset) {
+Buffer.prototype.get = function get (offset) {
   console.log('.get() is deprecated. Access using array indexes instead.')
   return this.readUInt8(offset)
 }
 
 // `set` will be removed in Node 0.13+
-Buffer.prototype.set = function (v, offset) {
+Buffer.prototype.set = function set (v, offset) {
   console.log('.set() is deprecated. Access using array indexes instead.')
   return this.writeUInt8(v, offset)
 }
@@ -734,9 +769,9 @@ function hexWrite (buf, string, offset, length) {
     length = strLen / 2
   }
   for (var i = 0; i < length; i++) {
-    var byte = parseInt(string.substr(i * 2, 2), 16)
-    if (isNaN(byte)) throw new Error('Invalid hex string')
-    buf[offset + i] = byte
+    var parsed = parseInt(string.substr(i * 2, 2), 16)
+    if (isNaN(parsed)) throw new Error('Invalid hex string')
+    buf[offset + i] = parsed
   }
   return i
 }
@@ -765,7 +800,7 @@ function utf16leWrite (buf, string, offset, length) {
   return charsWritten
 }
 
-Buffer.prototype.write = function (string, offset, length, encoding) {
+Buffer.prototype.write = function write (string, offset, length, encoding) {
   // Support both (string, offset, length, encoding)
   // and the legacy (string, encoding, offset, length)
   if (isFinite(offset)) {
@@ -782,8 +817,9 @@ Buffer.prototype.write = function (string, offset, length, encoding) {
 
   offset = Number(offset) || 0
 
-  if (length < 0 || offset < 0 || offset > this.length)
+  if (length < 0 || offset < 0 || offset > this.length) {
     throw new RangeError('attempt to write outside buffer bounds')
+  }
 
   var remaining = this.length - offset
   if (!length) {
@@ -826,7 +862,7 @@ Buffer.prototype.write = function (string, offset, length, encoding) {
   return ret
 }
 
-Buffer.prototype.toJSON = function () {
+Buffer.prototype.toJSON = function toJSON () {
   return {
     type: 'Buffer',
     data: Array.prototype.slice.call(this._arr || this, 0)
@@ -900,43 +936,39 @@ function utf16leSlice (buf, start, end) {
   return res
 }
 
-Buffer.prototype.slice = function (start, end) {
+Buffer.prototype.slice = function slice (start, end) {
   var len = this.length
   start = ~~start
   end = end === undefined ? len : ~~end
 
   if (start < 0) {
     start += len
-    if (start < 0)
-      start = 0
+    if (start < 0) start = 0
   } else if (start > len) {
     start = len
   }
 
   if (end < 0) {
     end += len
-    if (end < 0)
-      end = 0
+    if (end < 0) end = 0
   } else if (end > len) {
     end = len
   }
 
-  if (end < start)
-    end = start
+  if (end < start) end = start
 
   var newBuf
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     newBuf = Buffer._augment(this.subarray(start, end))
   } else {
     var sliceLen = end - start
-    newBuf = new Buffer(sliceLen, undefined, true)
+    newBuf = new Buffer(sliceLen, undefined)
     for (var i = 0; i < sliceLen; i++) {
       newBuf[i] = this[i + start]
     }
   }
 
-  if (newBuf.length)
-    newBuf.parent = this.parent || this
+  if (newBuf.length) newBuf.parent = this.parent || this
 
   return newBuf
 }
@@ -945,62 +977,58 @@ Buffer.prototype.slice = function (start, end) {
  * Need to make sure that buffer isn't trying to write out of bounds.
  */
 function checkOffset (offset, ext, length) {
-  if ((offset % 1) !== 0 || offset < 0)
-    throw new RangeError('offset is not uint')
-  if (offset + ext > length)
-    throw new RangeError('Trying to access beyond buffer length')
+  if ((offset % 1) !== 0 || offset < 0) throw new RangeError('offset is not uint')
+  if (offset + ext > length) throw new RangeError('Trying to access beyond buffer length')
 }
 
-Buffer.prototype.readUIntLE = function (offset, byteLength, noAssert) {
+Buffer.prototype.readUIntLE = function readUIntLE (offset, byteLength, noAssert) {
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
-    checkOffset(offset, byteLength, this.length)
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
 
   var val = this[offset]
   var mul = 1
   var i = 0
-  while (++i < byteLength && (mul *= 0x100))
+  while (++i < byteLength && (mul *= 0x100)) {
     val += this[offset + i] * mul
+  }
 
   return val
 }
 
-Buffer.prototype.readUIntBE = function (offset, byteLength, noAssert) {
+Buffer.prototype.readUIntBE = function readUIntBE (offset, byteLength, noAssert) {
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
+  if (!noAssert) {
     checkOffset(offset, byteLength, this.length)
+  }
 
   var val = this[offset + --byteLength]
   var mul = 1
-  while (byteLength > 0 && (mul *= 0x100))
+  while (byteLength > 0 && (mul *= 0x100)) {
     val += this[offset + --byteLength] * mul
+  }
 
   return val
 }
 
-Buffer.prototype.readUInt8 = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 1, this.length)
+Buffer.prototype.readUInt8 = function readUInt8 (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 1, this.length)
   return this[offset]
 }
 
-Buffer.prototype.readUInt16LE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 2, this.length)
+Buffer.prototype.readUInt16LE = function readUInt16LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
   return this[offset] | (this[offset + 1] << 8)
 }
 
-Buffer.prototype.readUInt16BE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 2, this.length)
+Buffer.prototype.readUInt16BE = function readUInt16BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
   return (this[offset] << 8) | this[offset + 1]
 }
 
-Buffer.prototype.readUInt32LE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readUInt32LE = function readUInt32LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
 
   return ((this[offset]) |
       (this[offset + 1] << 8) |
@@ -1008,117 +1036,104 @@ Buffer.prototype.readUInt32LE = function (offset, noAssert) {
       (this[offset + 3] * 0x1000000)
 }
 
-Buffer.prototype.readUInt32BE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readUInt32BE = function readUInt32BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
 
   return (this[offset] * 0x1000000) +
-      ((this[offset + 1] << 16) |
-      (this[offset + 2] << 8) |
-      this[offset + 3])
+    ((this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    this[offset + 3])
 }
 
-Buffer.prototype.readIntLE = function (offset, byteLength, noAssert) {
+Buffer.prototype.readIntLE = function readIntLE (offset, byteLength, noAssert) {
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
-    checkOffset(offset, byteLength, this.length)
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
 
   var val = this[offset]
   var mul = 1
   var i = 0
-  while (++i < byteLength && (mul *= 0x100))
+  while (++i < byteLength && (mul *= 0x100)) {
     val += this[offset + i] * mul
+  }
   mul *= 0x80
 
-  if (val >= mul)
-    val -= Math.pow(2, 8 * byteLength)
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
 
   return val
 }
 
-Buffer.prototype.readIntBE = function (offset, byteLength, noAssert) {
+Buffer.prototype.readIntBE = function readIntBE (offset, byteLength, noAssert) {
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
-    checkOffset(offset, byteLength, this.length)
+  if (!noAssert) checkOffset(offset, byteLength, this.length)
 
   var i = byteLength
   var mul = 1
   var val = this[offset + --i]
-  while (i > 0 && (mul *= 0x100))
+  while (i > 0 && (mul *= 0x100)) {
     val += this[offset + --i] * mul
+  }
   mul *= 0x80
 
-  if (val >= mul)
-    val -= Math.pow(2, 8 * byteLength)
+  if (val >= mul) val -= Math.pow(2, 8 * byteLength)
 
   return val
 }
 
-Buffer.prototype.readInt8 = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 1, this.length)
-  if (!(this[offset] & 0x80))
-    return (this[offset])
+Buffer.prototype.readInt8 = function readInt8 (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 1, this.length)
+  if (!(this[offset] & 0x80)) return (this[offset])
   return ((0xff - this[offset] + 1) * -1)
 }
 
-Buffer.prototype.readInt16LE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 2, this.length)
+Buffer.prototype.readInt16LE = function readInt16LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
   var val = this[offset] | (this[offset + 1] << 8)
   return (val & 0x8000) ? val | 0xFFFF0000 : val
 }
 
-Buffer.prototype.readInt16BE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 2, this.length)
+Buffer.prototype.readInt16BE = function readInt16BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 2, this.length)
   var val = this[offset + 1] | (this[offset] << 8)
   return (val & 0x8000) ? val | 0xFFFF0000 : val
 }
 
-Buffer.prototype.readInt32LE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readInt32LE = function readInt32LE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
 
   return (this[offset]) |
-      (this[offset + 1] << 8) |
-      (this[offset + 2] << 16) |
-      (this[offset + 3] << 24)
+    (this[offset + 1] << 8) |
+    (this[offset + 2] << 16) |
+    (this[offset + 3] << 24)
 }
 
-Buffer.prototype.readInt32BE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readInt32BE = function readInt32BE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
 
   return (this[offset] << 24) |
-      (this[offset + 1] << 16) |
-      (this[offset + 2] << 8) |
-      (this[offset + 3])
+    (this[offset + 1] << 16) |
+    (this[offset + 2] << 8) |
+    (this[offset + 3])
 }
 
-Buffer.prototype.readFloatLE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readFloatLE = function readFloatLE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
   return ieee754.read(this, offset, true, 23, 4)
 }
 
-Buffer.prototype.readFloatBE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 4, this.length)
+Buffer.prototype.readFloatBE = function readFloatBE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 4, this.length)
   return ieee754.read(this, offset, false, 23, 4)
 }
 
-Buffer.prototype.readDoubleLE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 8, this.length)
+Buffer.prototype.readDoubleLE = function readDoubleLE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 8, this.length)
   return ieee754.read(this, offset, true, 52, 8)
 }
 
-Buffer.prototype.readDoubleBE = function (offset, noAssert) {
-  if (!noAssert)
-    checkOffset(offset, 8, this.length)
+Buffer.prototype.readDoubleBE = function readDoubleBE (offset, noAssert) {
+  if (!noAssert) checkOffset(offset, 8, this.length)
   return ieee754.read(this, offset, false, 52, 8)
 }
 
@@ -1128,43 +1143,42 @@ function checkInt (buf, value, offset, ext, max, min) {
   if (offset + ext > buf.length) throw new RangeError('index out of range')
 }
 
-Buffer.prototype.writeUIntLE = function (value, offset, byteLength, noAssert) {
+Buffer.prototype.writeUIntLE = function writeUIntLE (value, offset, byteLength, noAssert) {
   value = +value
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, byteLength, Math.pow(2, 8 * byteLength), 0)
+  if (!noAssert) checkInt(this, value, offset, byteLength, Math.pow(2, 8 * byteLength), 0)
 
   var mul = 1
   var i = 0
   this[offset] = value & 0xFF
-  while (++i < byteLength && (mul *= 0x100))
+  while (++i < byteLength && (mul *= 0x100)) {
     this[offset + i] = (value / mul) >>> 0 & 0xFF
+  }
 
   return offset + byteLength
 }
 
-Buffer.prototype.writeUIntBE = function (value, offset, byteLength, noAssert) {
+Buffer.prototype.writeUIntBE = function writeUIntBE (value, offset, byteLength, noAssert) {
   value = +value
   offset = offset >>> 0
   byteLength = byteLength >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, byteLength, Math.pow(2, 8 * byteLength), 0)
+  if (!noAssert) checkInt(this, value, offset, byteLength, Math.pow(2, 8 * byteLength), 0)
 
   var i = byteLength - 1
   var mul = 1
   this[offset + i] = value & 0xFF
-  while (--i >= 0 && (mul *= 0x100))
+  while (--i >= 0 && (mul *= 0x100)) {
     this[offset + i] = (value / mul) >>> 0 & 0xFF
+  }
 
   return offset + byteLength
 }
 
-Buffer.prototype.writeUInt8 = function (value, offset, noAssert) {
+Buffer.prototype.writeUInt8 = function writeUInt8 (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 1, 0xff, 0)
+  if (!noAssert) checkInt(this, value, offset, 1, 0xff, 0)
   if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
   this[offset] = value
   return offset + 1
@@ -1178,27 +1192,29 @@ function objectWriteUInt16 (buf, value, offset, littleEndian) {
   }
 }
 
-Buffer.prototype.writeUInt16LE = function (value, offset, noAssert) {
+Buffer.prototype.writeUInt16LE = function writeUInt16LE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 2, 0xffff, 0)
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = value
     this[offset + 1] = (value >>> 8)
-  } else objectWriteUInt16(this, value, offset, true)
+  } else {
+    objectWriteUInt16(this, value, offset, true)
+  }
   return offset + 2
 }
 
-Buffer.prototype.writeUInt16BE = function (value, offset, noAssert) {
+Buffer.prototype.writeUInt16BE = function writeUInt16BE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 2, 0xffff, 0)
+  if (!noAssert) checkInt(this, value, offset, 2, 0xffff, 0)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = (value >>> 8)
     this[offset + 1] = value
-  } else objectWriteUInt16(this, value, offset, false)
+  } else {
+    objectWriteUInt16(this, value, offset, false)
+  }
   return offset + 2
 }
 
@@ -1209,139 +1225,144 @@ function objectWriteUInt32 (buf, value, offset, littleEndian) {
   }
 }
 
-Buffer.prototype.writeUInt32LE = function (value, offset, noAssert) {
+Buffer.prototype.writeUInt32LE = function writeUInt32LE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset + 3] = (value >>> 24)
     this[offset + 2] = (value >>> 16)
     this[offset + 1] = (value >>> 8)
     this[offset] = value
-  } else objectWriteUInt32(this, value, offset, true)
+  } else {
+    objectWriteUInt32(this, value, offset, true)
+  }
   return offset + 4
 }
 
-Buffer.prototype.writeUInt32BE = function (value, offset, noAssert) {
+Buffer.prototype.writeUInt32BE = function writeUInt32BE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 4, 0xffffffff, 0)
+  if (!noAssert) checkInt(this, value, offset, 4, 0xffffffff, 0)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = (value >>> 24)
     this[offset + 1] = (value >>> 16)
     this[offset + 2] = (value >>> 8)
     this[offset + 3] = value
-  } else objectWriteUInt32(this, value, offset, false)
+  } else {
+    objectWriteUInt32(this, value, offset, false)
+  }
   return offset + 4
 }
 
-Buffer.prototype.writeIntLE = function (value, offset, byteLength, noAssert) {
+Buffer.prototype.writeIntLE = function writeIntLE (value, offset, byteLength, noAssert) {
   value = +value
   offset = offset >>> 0
   if (!noAssert) {
-    checkInt(this,
-             value,
-             offset,
-             byteLength,
-             Math.pow(2, 8 * byteLength - 1) - 1,
-             -Math.pow(2, 8 * byteLength - 1))
+    checkInt(
+      this, value, offset, byteLength,
+      Math.pow(2, 8 * byteLength - 1) - 1,
+      -Math.pow(2, 8 * byteLength - 1)
+    )
   }
 
   var i = 0
   var mul = 1
   var sub = value < 0 ? 1 : 0
   this[offset] = value & 0xFF
-  while (++i < byteLength && (mul *= 0x100))
+  while (++i < byteLength && (mul *= 0x100)) {
     this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
 
   return offset + byteLength
 }
 
-Buffer.prototype.writeIntBE = function (value, offset, byteLength, noAssert) {
+Buffer.prototype.writeIntBE = function writeIntBE (value, offset, byteLength, noAssert) {
   value = +value
   offset = offset >>> 0
   if (!noAssert) {
-    checkInt(this,
-             value,
-             offset,
-             byteLength,
-             Math.pow(2, 8 * byteLength - 1) - 1,
-             -Math.pow(2, 8 * byteLength - 1))
+    checkInt(
+      this, value, offset, byteLength,
+      Math.pow(2, 8 * byteLength - 1) - 1,
+      -Math.pow(2, 8 * byteLength - 1)
+    )
   }
 
   var i = byteLength - 1
   var mul = 1
   var sub = value < 0 ? 1 : 0
   this[offset + i] = value & 0xFF
-  while (--i >= 0 && (mul *= 0x100))
+  while (--i >= 0 && (mul *= 0x100)) {
     this[offset + i] = ((value / mul) >> 0) - sub & 0xFF
+  }
 
   return offset + byteLength
 }
 
-Buffer.prototype.writeInt8 = function (value, offset, noAssert) {
+Buffer.prototype.writeInt8 = function writeInt8 (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 1, 0x7f, -0x80)
+  if (!noAssert) checkInt(this, value, offset, 1, 0x7f, -0x80)
   if (!Buffer.TYPED_ARRAY_SUPPORT) value = Math.floor(value)
   if (value < 0) value = 0xff + value + 1
   this[offset] = value
   return offset + 1
 }
 
-Buffer.prototype.writeInt16LE = function (value, offset, noAssert) {
+Buffer.prototype.writeInt16LE = function writeInt16LE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = value
     this[offset + 1] = (value >>> 8)
-  } else objectWriteUInt16(this, value, offset, true)
+  } else {
+    objectWriteUInt16(this, value, offset, true)
+  }
   return offset + 2
 }
 
-Buffer.prototype.writeInt16BE = function (value, offset, noAssert) {
+Buffer.prototype.writeInt16BE = function writeInt16BE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 2, 0x7fff, -0x8000)
+  if (!noAssert) checkInt(this, value, offset, 2, 0x7fff, -0x8000)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = (value >>> 8)
     this[offset + 1] = value
-  } else objectWriteUInt16(this, value, offset, false)
+  } else {
+    objectWriteUInt16(this, value, offset, false)
+  }
   return offset + 2
 }
 
-Buffer.prototype.writeInt32LE = function (value, offset, noAssert) {
+Buffer.prototype.writeInt32LE = function writeInt32LE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = value
     this[offset + 1] = (value >>> 8)
     this[offset + 2] = (value >>> 16)
     this[offset + 3] = (value >>> 24)
-  } else objectWriteUInt32(this, value, offset, true)
+  } else {
+    objectWriteUInt32(this, value, offset, true)
+  }
   return offset + 4
 }
 
-Buffer.prototype.writeInt32BE = function (value, offset, noAssert) {
+Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) {
   value = +value
   offset = offset >>> 0
-  if (!noAssert)
-    checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
+  if (!noAssert) checkInt(this, value, offset, 4, 0x7fffffff, -0x80000000)
   if (value < 0) value = 0xffffffff + value + 1
   if (Buffer.TYPED_ARRAY_SUPPORT) {
     this[offset] = (value >>> 24)
     this[offset + 1] = (value >>> 16)
     this[offset + 2] = (value >>> 8)
     this[offset + 3] = value
-  } else objectWriteUInt32(this, value, offset, false)
+  } else {
+    objectWriteUInt32(this, value, offset, false)
+  }
   return offset + 4
 }
 
@@ -1352,39 +1373,39 @@ function checkIEEE754 (buf, value, offset, ext, max, min) {
 }
 
 function writeFloat (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert)
+  if (!noAssert) {
     checkIEEE754(buf, value, offset, 4, 3.4028234663852886e+38, -3.4028234663852886e+38)
+  }
   ieee754.write(buf, value, offset, littleEndian, 23, 4)
   return offset + 4
 }
 
-Buffer.prototype.writeFloatLE = function (value, offset, noAssert) {
+Buffer.prototype.writeFloatLE = function writeFloatLE (value, offset, noAssert) {
   return writeFloat(this, value, offset, true, noAssert)
 }
 
-Buffer.prototype.writeFloatBE = function (value, offset, noAssert) {
+Buffer.prototype.writeFloatBE = function writeFloatBE (value, offset, noAssert) {
   return writeFloat(this, value, offset, false, noAssert)
 }
 
 function writeDouble (buf, value, offset, littleEndian, noAssert) {
-  if (!noAssert)
+  if (!noAssert) {
     checkIEEE754(buf, value, offset, 8, 1.7976931348623157E+308, -1.7976931348623157E+308)
+  }
   ieee754.write(buf, value, offset, littleEndian, 52, 8)
   return offset + 8
 }
 
-Buffer.prototype.writeDoubleLE = function (value, offset, noAssert) {
+Buffer.prototype.writeDoubleLE = function writeDoubleLE (value, offset, noAssert) {
   return writeDouble(this, value, offset, true, noAssert)
 }
 
-Buffer.prototype.writeDoubleBE = function (value, offset, noAssert) {
+Buffer.prototype.writeDoubleBE = function writeDoubleBE (value, offset, noAssert) {
   return writeDouble(this, value, offset, false, noAssert)
 }
 
 // copy(targetBuffer, targetStart=0, sourceStart=0, sourceEnd=buffer.length)
-Buffer.prototype.copy = function (target, target_start, start, end) {
-  var self = this // source
-
+Buffer.prototype.copy = function copy (target, target_start, start, end) {
   if (!start) start = 0
   if (!end && end !== 0) end = this.length
   if (target_start >= target.length) target_start = target.length
@@ -1393,19 +1414,20 @@ Buffer.prototype.copy = function (target, target_start, start, end) {
 
   // Copy 0 bytes; we're done
   if (end === start) return 0
-  if (target.length === 0 || self.length === 0) return 0
+  if (target.length === 0 || this.length === 0) return 0
 
   // Fatal error conditions
-  if (target_start < 0)
+  if (target_start < 0) {
     throw new RangeError('targetStart out of bounds')
-  if (start < 0 || start >= self.length) throw new RangeError('sourceStart out of bounds')
+  }
+  if (start < 0 || start >= this.length) throw new RangeError('sourceStart out of bounds')
   if (end < 0) throw new RangeError('sourceEnd out of bounds')
 
   // Are we oob?
-  if (end > this.length)
-    end = this.length
-  if (target.length - target_start < end - start)
+  if (end > this.length) end = this.length
+  if (target.length - target_start < end - start) {
     end = target.length - target_start + start
+  }
 
   var len = end - start
 
@@ -1421,7 +1443,7 @@ Buffer.prototype.copy = function (target, target_start, start, end) {
 }
 
 // fill(value, start=0, end=buffer.length)
-Buffer.prototype.fill = function (value, start, end) {
+Buffer.prototype.fill = function fill (value, start, end) {
   if (!value) value = 0
   if (!start) start = 0
   if (!end) end = this.length
@@ -1455,7 +1477,7 @@ Buffer.prototype.fill = function (value, start, end) {
  * Creates a new `ArrayBuffer` with the *copied* memory of the buffer instance.
  * Added in Node 0.12. Only available in browsers that support ArrayBuffer.
  */
-Buffer.prototype.toArrayBuffer = function () {
+Buffer.prototype.toArrayBuffer = function toArrayBuffer () {
   if (typeof Uint8Array !== 'undefined') {
     if (Buffer.TYPED_ARRAY_SUPPORT) {
       return (new Buffer(this)).buffer
@@ -1479,12 +1501,11 @@ var BP = Buffer.prototype
 /**
  * Augment a Uint8Array *instance* (not the Uint8Array class!) with Buffer methods
  */
-Buffer._augment = function (arr) {
+Buffer._augment = function _augment (arr) {
   arr.constructor = Buffer
   arr._isBuffer = true
 
-  // save reference to original Uint8Array get/set methods before overwriting
-  arr._get = arr.get
+  // save reference to original Uint8Array set method before overwriting
   arr._set = arr.set
 
   // deprecated, will be removed in node 0.13+
@@ -1497,6 +1518,7 @@ Buffer._augment = function (arr) {
   arr.toJSON = BP.toJSON
   arr.equals = BP.equals
   arr.compare = BP.compare
+  arr.indexOf = BP.indexOf
   arr.copy = BP.copy
   arr.slice = BP.slice
   arr.readUIntLE = BP.readUIntLE
@@ -1684,8 +1706,7 @@ function base64ToBytes (str) {
 
 function blitBuffer (src, dst, offset, length) {
   for (var i = 0; i < length; i++) {
-    if ((i + offset >= dst.length) || (i >= src.length))
-      break
+    if ((i + offset >= dst.length) || (i >= src.length)) break
     dst[i + offset] = src[i]
   }
   return i
@@ -2544,6 +2565,7 @@ process.browser = true;
 process.env = {};
 process.argv = [];
 process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
 
 function noop() {}
 
@@ -6850,7 +6872,7 @@ var Cylon = require("cylon");
 /**
  * A Firmata adaptor
  *
- * @constructor
+ * @constructor firmata
  *
  * @param {Object} opts
  * @param {String} opts.port the serial port to connect to the board over
@@ -6889,8 +6911,7 @@ Adaptor.prototype.commands = [
  */
 Adaptor.prototype.connect = function(callback) {
   this.board = new Firmata.Board(this.port, function(data) {
-    this.emit("connect");
-    callback(null, data);
+    this.respond("connect", callback, null, data);
   }.bind(this));
 
   this.proxyMethods(this.commands, this.board, this);
@@ -6904,7 +6925,7 @@ Adaptor.prototype.connect = function(callback) {
  */
 Adaptor.prototype.disconnect = function(callback) {
   this.board.reset();
-  callback();
+  this.respond("disconnect", callback);
 };
 
 /**
@@ -6919,11 +6940,9 @@ Adaptor.prototype.disconnect = function(callback) {
 Adaptor.prototype.digitalRead = function(pin, callback) {
   this.pinMode(pin, "input");
 
-  var adCallback = function(readVal) {
-    callback(null, readVal);
-  };
-
-  this.board.digitalRead(pin, adCallback);
+  this.board.digitalRead(pin, function(value) {
+    this.respond("digitalRead", callback, null, value, pin);
+  }.bind(this));
 };
 
 /**
@@ -6934,9 +6953,10 @@ Adaptor.prototype.digitalRead = function(pin, callback) {
  * @return {null}
  * @publish
  */
-Adaptor.prototype.digitalWrite = function(pin, value) {
+Adaptor.prototype.digitalWrite = function(pin, value, callback) {
   this.pinMode(pin, "output");
   this.board.digitalWrite(pin, value);
+  this.respond("digitalWrite", callback, null, value, pin);
 };
 
 /**
@@ -6949,11 +6969,9 @@ Adaptor.prototype.digitalWrite = function(pin, value) {
  * @publish
  */
 Adaptor.prototype.analogRead = function(pin, callback) {
-  var adCallback = function(readVal) {
-    callback(null, readVal);
-  };
-
-  this.board.analogRead(pin, adCallback);
+  this.board.analogRead(pin, function(value) {
+    this.respond("analogRead", callback, null, value, pin);
+  }.bind(this));
 };
 
 /**
@@ -6964,10 +6982,11 @@ Adaptor.prototype.analogRead = function(pin, callback) {
  * @return {null}
  * @publish
  */
-Adaptor.prototype.analogWrite = function(pin, value) {
+Adaptor.prototype.analogWrite = function(pin, value, callback) {
   value = (value).toScale(0, 255);
   this.pinMode(this.board.analogPins[pin], "analog");
   this.board.analogWrite(this.board.analogPins[pin], value);
+  this.respond("analogWrite", callback, null, value, pin);
 };
 
 /**
@@ -6978,10 +6997,11 @@ Adaptor.prototype.analogWrite = function(pin, value) {
  * @return {null}
  * @publish
  */
-Adaptor.prototype.pwmWrite = function(pin, value) {
+Adaptor.prototype.pwmWrite = function(pin, value, callback) {
   value = (value).toScale(0, 255);
   this.pinMode(pin, "pwm");
   this.board.analogWrite(pin, value);
+  this.respond("pwmWrite", callback, null, value, pin);
 };
 
 /**
@@ -6992,10 +7012,11 @@ Adaptor.prototype.pwmWrite = function(pin, value) {
  * @return {null}
  * @publish
  */
-Adaptor.prototype.servoWrite = function(pin, value) {
+Adaptor.prototype.servoWrite = function(pin, value, callback) {
   value = (value).toScale(0, 180);
   this.pinMode(pin, "servo");
   this.board.servoWrite(pin, value);
+  this.respond("servoWrite", callback, null, value, pin);
 };
 
 /**
@@ -7012,7 +7033,7 @@ Adaptor.prototype.i2cWrite = function(address, cmd, buff, callback) {
   if (!this.i2cReady) { this.i2cConfig(2000); }
   cmd = (Array.isArray(cmd)) ? cmd : [cmd];
   this.board.sendI2CWriteRequest(address, cmd.concat(buff));
-  if ("function" === typeof(callback)) { callback(); }
+  this.respond("i2cWrite", callback);
 };
 
 /**
@@ -7036,7 +7057,7 @@ Adaptor.prototype.i2cRead = function(address, cmd, length, callback) {
     this.board.sendI2CWriteRequest(address, cmd);
   }
 
-  this.board.sendI2CReadRequest(address, length, function(data){
+  this.board.sendI2CReadRequest(address, length, function(data) {
     var err = null;
 
     if (data.name === "Error") {
@@ -7044,8 +7065,8 @@ Adaptor.prototype.i2cRead = function(address, cmd, length, callback) {
       data = null;
     }
 
-    callback(err, data);
-  });
+    this.respond("i2cRead", callback, err, data);
+  }.bind(this));
 };
 
 Adaptor.prototype.pinMode = function(pin, mode) {
@@ -7058,23 +7079,10 @@ Adaptor.prototype.i2cConfig = function(delay) {
 };
 
 Adaptor.prototype._convertPinMode = function(mode) {
-  switch (mode) {
-    case "input":
-      return this.board.MODES.INPUT ;
-    case "output":
-      return this.board.MODES.OUTPUT ;
-    case "analog":
-      return this.board.MODES.ANALOG ;
-    case "pwm":
-      return this.board.MODES.PWM ;
-    case "servo":
-      return this.board.MODES.SERVO ;
-    default:
-      return this.board.MODES.INPUT ;
-  }
+  return this.board.MODES[mode.toUpperCase()] || this.board.MODES.INPUT;
 };
 
-},{"cylon":76,"firmata":36}],35:[function(require,module,exports){
+},{"cylon":83,"firmata":36}],35:[function(require,module,exports){
 /**
  * "Inspired" by Encoder7Bit.h/Encoder7Bit.cpp in the
  * Firmata source code.
@@ -8483,7 +8491,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./encoder7bit":35,"./onewireutils":37,"_process":13,"browser-serialport":38,"buffer":5,"events":9,"object-assign":39,"serialport":54,"util":33}],37:[function(require,module,exports){
+},{"./encoder7bit":35,"./onewireutils":37,"_process":13,"browser-serialport":38,"buffer":5,"events":9,"object-assign":39,"serialport":57,"util":33}],37:[function(require,module,exports){
 var Encoder7Bit = require("./encoder7bit");
 
 var OneWireUtils = {
@@ -8534,202 +8542,423 @@ var OneWireUtils = {
 module.exports = OneWireUtils;
 
 },{"./encoder7bit":35}],38:[function(require,module,exports){
-"use strict";
+(function (process,Buffer){
+'use strict';
 
-function SerialPort(path, options, openImmediately) {
-	console.log("SerialPort constructed.");
+var EE = require('events').EventEmitter;
+var util = require('util');
 
-	this.comName = path;
+var DATABITS = [7, 8];
+var STOPBITS = [1, 2];
+var PARITY = ['none', 'even', 'mark', 'odd', 'space'];
+var FLOWCONTROLS = ['RTSCTS'];
 
-	if (options) {
-		for (var key in this.options) {
-			//console.log("Looking for " + key + " option.");
-			if (options[key] != undefined) {
-				//console.log("Replacing " + key + " with " + options[key]);
-				this.options[key] = options[key];
-			}
-		}
-	}
+var _options = {
+  baudrate: 9600,
+  parity: 'none',
+  rtscts: false,
+  databits: 8,
+  stopbits: 1,
+  buffersize: 256
+};
 
-	if (typeof chrome != "undefined" && chrome.serial) {
-		var self = this;
+function convertOptions(options){
+  switch (options.dataBits) {
+    case 7:
+      options.dataBits = 'seven';
+      break;
+    case 8:
+      options.dataBits = 'eight';
+      break;
+  }
 
-		if (openImmediately != false) {
-			this.open();
-		}
+  switch (options.stopBits) {
+    case 1:
+      options.stopBits = 'one';
+      break;
+    case 2:
+      options.stopBits = 'two';
+      break;
+  }
 
-	} else {
-		throw "No access to serial ports. Try loading as a Chrome Application.";
-	}
+  switch (options.parity) {
+    case 'none':
+      options.parity = 'no';
+      break;
+  }
+
+  return options;
 }
 
-SerialPort.prototype.options = {
-    baudrate: 57600,
-    buffersize: 1
-};
+function SerialPort(path, options, openImmediately, callback) {
+
+  EE.call(this);
+
+  var self = this;
+
+  var args = Array.prototype.slice.call(arguments);
+  callback = args.pop();
+  if (typeof(callback) !== 'function') {
+    callback = null;
+  }
+
+  options = (typeof options !== 'function') && options || {};
+
+  openImmediately = (openImmediately === undefined || openImmediately === null) ? true : openImmediately;
+
+  callback = callback || function (err) {
+    if (err) {
+      self.emit('error', err);
+    }
+  };
+
+  var err;
+
+  options.baudRate = options.baudRate || options.baudrate || _options.baudrate;
+
+  options.dataBits = options.dataBits || options.databits || _options.databits;
+  if (DATABITS.indexOf(options.dataBits) === -1) {
+    err = new Error('Invalid "databits": ' + options.dataBits);
+    callback(err);
+    return;
+  }
+
+  options.stopBits = options.stopBits || options.stopbits || _options.stopbits;
+  if (STOPBITS.indexOf(options.stopBits) === -1) {
+    err = new Error('Invalid "stopbits": ' + options.stopbits);
+    callback(err);
+    return;
+  }
+
+  options.parity = options.parity || _options.parity;
+  if (PARITY.indexOf(options.parity) === -1) {
+    err = new Error('Invalid "parity": ' + options.parity);
+    callback(err);
+    return;
+  }
+
+  if (!path) {
+    err = new Error('Invalid port specified: ' + path);
+    callback(err);
+    return;
+  }
+
+  options.rtscts = _options.rtscts;
+
+  if (options.flowControl || options.flowcontrol) {
+    var fc = options.flowControl || options.flowcontrol;
+
+    if (typeof fc === 'boolean') {
+      options.rtscts = true;
+    } else {
+      var clean = fc.every(function (flowControl) {
+        var fcup = flowControl.toUpperCase();
+        var idx = FLOWCONTROLS.indexOf(fcup);
+        if (idx < 0) {
+          var err = new Error('Invalid "flowControl": ' + fcup + '. Valid options: ' + FLOWCONTROLS.join(', '));
+          callback(err);
+          return false;
+        } else {
+
+          // "XON", "XOFF", "XANY", "DTRDTS", "RTSCTS"
+          switch (idx) {
+            case 0: options.rtscts = true; break;
+          }
+          return true;
+        }
+      });
+      if(!clean){
+        return;
+      }
+    }
+  }
+
+  options.bufferSize = options.bufferSize || options.buffersize || _options.buffersize;
+
+  // defaults to chrome.serial if no options.serial passed
+  // inlined instead of on _options to allow mocking global chrome.serial for optional options test
+  options.serial = options.serial || (typeof chrome !== 'undefined' && chrome.serial);
+
+  if (!options.serial) {
+    throw new Error('No access to serial ports. Try loading as a Chrome Application.');
+  }
+
+  this.options = convertOptions(options);
+
+  this.options.serial.onReceiveError.addListener(function(info){
+
+    switch (info.error) {
+
+      case 'disconnected':
+      case 'device_lost':
+      case 'system_error':
+        err = new Error('Disconnected');
+        // send notification of disconnect
+        if (self.options.disconnectedCallback) {
+          self.options.disconnectedCallback(err);
+        } else {
+          self.emit('disconnect', err);
+        }
+        self.connectionId = -1;
+        self.emit('close');
+        self.removeAllListeners();
+        break;
+      case 'timeout':
+        break;
+    }
+
+  });
+
+  this.path = path;
+
+  if (openImmediately) {
+    process.nextTick(function () {
+      self.open(callback);
+    });
+  }
+}
+
+util.inherits(SerialPort, EE);
 
 SerialPort.prototype.connectionId = -1;
 
-SerialPort.prototype.comName = "";
-
-SerialPort.prototype.eventListeners = {};
-
 SerialPort.prototype.open = function (callback) {
-	console.log("Opening ", this.comName);
-	chrome.serial.connect(this.comName, {bitrate: parseInt(this.options.baudrate)}, this.proxy('onOpen', callback));
+  var options = {
+    bitrate: parseInt(this.options.baudRate, 10),
+    dataBits: this.options.dataBits,
+    parityBit: this.options.parity,
+    stopBits: this.options.stopBits,
+    ctsFlowControl: this.options.rtscts
+  };
+
+  this.options.serial.connect(this.path, options, this.proxy('onOpen', callback));
 };
 
 SerialPort.prototype.onOpen = function (callback, openInfo) {
-	console.log("onOpen", callback, openInfo);
-	this.connectionId = openInfo.connectionId;
-	if (this.connectionId == -1) {
-		this.publishEvent("error", "Could not open port.");
-		return;
-	}
+  if(chrome.runtime.lastError){
+    if(typeof callback === 'function'){
+      callback(chrome.runtime.lastError);
+    }else{
+      this.emit('error', chrome.runtime.lastError);
+    }
+    return;
+  }
 
-	this.publishEvent("open", openInfo);
+  this.connectionId = openInfo.connectionId;
 
+  if (this.connectionId === -1) {
+    this.emit('error', new Error('Could not open port.'));
+    return;
+  }
 
-	console.log('Connected to port.', this.connectionId);
+  this.emit('open', openInfo);
 
-	typeof callback == "function" && callback(openInfo);
+  if(typeof callback === 'function'){
+    callback(chrome.runtime.lastError, openInfo);
+  }
 
-	chrome.serial.onReceive.addListener(this.proxy('onRead'));
-
+  this.options.serial.onReceive.addListener(this.proxy('onRead'));
 };
 
 SerialPort.prototype.onRead = function (readInfo) {
-	if (readInfo && this.connectionId == readInfo.connectionId) {
+  if (readInfo && this.connectionId === readInfo.connectionId) {
 
-		var uint8View = new Uint8Array(readInfo.data);
-		var string = "";
-		for (var i = 0; i < readInfo.data.byteLength; i++) {
-			string += String.fromCharCode(uint8View[i]);
-		}
+    if (this.options.dataCallback) {
+      this.options.dataCallback(toBuffer(readInfo.data));
+    } else {
+      this.emit('data', toBuffer(readInfo.data));
+    }
 
-		//console.log("Got data", string, readInfo.data);
-
-		//Maybe this should be a Buffer()
-		this.publishEvent("data", uint8View);
-		this.publishEvent("dataString", string);
-	}
-}
+  }
+};
 
 SerialPort.prototype.write = function (buffer, callback) {
-	if (typeof callback != "function") { callback = function() {}; }
+  if (this.connectionId < 0) {
+    var err = new Error('Serialport not open.');
+    if(typeof callback === 'function'){
+      callback(err);
+    }else{
+      this.emit('error', err);
+    }
+    return;
+  }
 
-	//Make sure its not a browserify faux Buffer.
-	if (buffer instanceof ArrayBuffer == false) {
-		buffer = buffer2ArrayBuffer(buffer);
-	}
+  if (typeof buffer === 'string') {
+    buffer = str2ab(buffer);
+  }
 
-	chrome.serial.send(this.connectionId, buffer, callback);
+  //Make sure its not a browserify faux Buffer.
+  if (buffer instanceof ArrayBuffer === false) {
+    buffer = buffer2ArrayBuffer(buffer);
+  }
+
+  this.options.serial.send(this.connectionId, buffer, function(info) {
+    if (typeof callback === 'function') {
+      callback(chrome.runtime.lastError, info);
+    }
+  });
 };
 
-SerialPort.prototype.writeString = function (string, callback) {
-	this.write(str2ab(string), callback);
-};
 
 SerialPort.prototype.close = function (callback) {
-	chrome.serial.close(this.connectionId, this.proxy('onClose', callback));
+  if (this.connectionId < 0) {
+    var err = new Error('Serialport not open.');
+    if(typeof callback === 'function'){
+      callback(err);
+    }else{
+      this.emit('error', err);
+    }
+    return;
+  }
+
+  this.options.serial.disconnect(this.connectionId, this.proxy('onClose', callback));
 };
 
-SerialPort.prototype.onClose = function (callback) {
-	this.connectionId = -1;
-	console.log("Closed port", arguments);
-	this.publishEvent("close");
-	typeof callback == "function" && callback(openInfo);
+SerialPort.prototype.onClose = function (callback, result) {
+  this.connectionId = -1;
+  this.emit('close');
+
+  this.removeAllListeners();
+
+  if (typeof callback === 'function') {
+    callback(chrome.runtime.lastError, result);
+  }
 };
 
 SerialPort.prototype.flush = function (callback) {
+  if (this.connectionId < 0) {
+    var err = new Error('Serialport not open.');
+    if(typeof callback === 'function'){
+      callback(err);
+    }else{
+      this.emit('error', err);
+    }
+    return;
+  }
 
+  var self = this;
+
+  this.options.serial.flush(this.connectionId, function(result) {
+    if (chrome.runtime.lastError) {
+      if (typeof callback === 'function') {
+        callback(chrome.runtime.lastError, result);
+      } else {
+        self.emit('error', chrome.runtime.lastError);
+      }
+      return;
+    } else {
+      callback(null, result);
+    }
+  });
 };
 
-//Expecting: data, error
-SerialPort.prototype.on = function (eventName, callback) {
-	if (this.eventListeners[eventName] == undefined) {
-		this.eventListeners[eventName] = [];
-	}
-	if (typeof callback == "function") {
-		this.eventListeners[eventName].push(callback);
-	} else {
-		throw "can not subscribe with a non function callback";
-	}
-}
+SerialPort.prototype.drain = function (callback) {
+  if (this.connectionId < 0) {
+    var err = new Error('Serialport not open.');
+    if(typeof callback === 'function'){
+      callback(err);
+    }else{
+      this.emit('error', err);
+    }
+    return;
+  }
 
-SerialPort.prototype.publishEvent = function (eventName, data) {
-	if (this.eventListeners[eventName] != undefined) {
-		for (var i = 0; i < this.eventListeners[eventName].length; i++) {
-			this.eventListeners[eventName][i](data);
-		}
-	}
-}
+  if (typeof callback === 'function') {
+    callback();
+  }
+};
+
 
 SerialPort.prototype.proxy = function () {
-	var self = this;
-	var proxyArgs = [];
+  var self = this;
+  var proxyArgs = [];
 
-	//arguments isnt actually an array.
-	for (var i = 0; i < arguments.length; i++) {
-	    proxyArgs[i] = arguments[i];
-	}
+  //arguments isnt actually an array.
+  for (var i = 0; i < arguments.length; i++) {
+      proxyArgs[i] = arguments[i];
+  }
 
-	var functionName = proxyArgs.splice(0, 1)[0];
+  var functionName = proxyArgs.splice(0, 1)[0];
 
-	var func = function() {
-		var funcArgs = [];
-		for (var i = 0; i < arguments.length; i++) {
-		    funcArgs[i] = arguments[i];
-		}
-		var allArgs = proxyArgs.concat(funcArgs);
+  var func = function() {
+    var funcArgs = [];
+    for (var i = 0; i < arguments.length; i++) {
+        funcArgs[i] = arguments[i];
+    }
+    var allArgs = proxyArgs.concat(funcArgs);
 
-		self[functionName].apply(self, allArgs);
-	}
+    self[functionName].apply(self, allArgs);
+  };
 
-	return func;
-}
+  return func;
+};
+
+SerialPort.prototype.set = function (options, callback) {
+  this.options.serial.setControlSignals(this.connectionId, options, function(result){
+    callback(chrome.runtime.lastError, result);
+  });
+};
 
 function SerialPortList(callback) {
-	if (typeof chrome != "undefined" && chrome.serial) {
-		chrome.serial.getDevices(function(ports) {
-			var portObjects = Array(ports.length);
-			for (var i = 0; i < ports.length; i++) {
-				portObjects[i] = new SerialPort(ports[i].path, null, false);
-			}
-			callback(null, portObjects);
-		});
-	} else {
-		callback("No access to serial ports. Try loading as a Chrome Application.", null);
-	}
-};
+  if (typeof chrome != 'undefined' && chrome.serial) {
+    chrome.serial.getDevices(function(ports) {
+      var portObjects = new Array(ports.length);
+      for (var i = 0; i < ports.length; i++) {
+        portObjects[i] = {
+          comName: ports[i].path,
+          manufacturer: ports[i].displayName,
+          serialNumber: '',
+          pnpId: '',
+          locationId:'',
+          vendorId: '0x' + (ports[i].vendorId||0).toString(16),
+          productId: '0x' + (ports[i].productId||0).toString(16)
+        };
+      }
+      callback(chrome.runtime.lastError, portObjects);
+    });
+  } else {
+    callback(new Error('No access to serial ports. Try loading as a Chrome Application.'), null);
+  }
+}
 
 // Convert string to ArrayBuffer
 function str2ab(str) {
-	var buf = new ArrayBuffer(str.length);
-	var bufView = new Uint8Array(buf);
-	for (var i = 0; i < str.length; i++) {
-		bufView[i] = str.charCodeAt(i);
-	}
-	return buf;
+  var buf = new ArrayBuffer(str.length);
+  var bufView = new Uint8Array(buf);
+  for (var i = 0; i < str.length; i++) {
+    bufView[i] = str.charCodeAt(i);
+  }
+  return buf;
 }
 
 // Convert buffer to ArrayBuffer
 function buffer2ArrayBuffer(buffer) {
-	var buf = new ArrayBuffer(buffer.length);
-	var bufView = new Uint8Array(buf);
-	for (var i = 0; i < buffer.length; i++) {
-		bufView[i] = buffer[i];
-	}
-	return buf;
+  var buf = new ArrayBuffer(buffer.length);
+  var bufView = new Uint8Array(buf);
+  for (var i = 0; i < buffer.length; i++) {
+    bufView[i] = buffer[i];
+  }
+  return buf;
+}
+
+function toBuffer(ab) {
+  var buffer = new Buffer(ab.byteLength);
+  var view = new Uint8Array(ab);
+  for (var i = 0; i < buffer.length; ++i) {
+      buffer[i] = view[i];
+  }
+  return buffer;
 }
 
 module.exports = {
-	SerialPort: SerialPort,
-	list: SerialPortList,
-	used: [] //TODO: Populate this somewhere.
+  SerialPort: SerialPort,
+  list: SerialPortList,
+  buffer2ArrayBuffer: buffer2ArrayBuffer,
+  used: [] //TODO: Populate this somewhere.
 };
 
-},{}],39:[function(require,module,exports){
+}).call(this,require('_process'),require("buffer").Buffer)
+},{"_process":13,"buffer":5,"events":9,"util":33}],39:[function(require,module,exports){
 'use strict';
 
 function ToObject(val) {
@@ -9896,6 +10125,507 @@ module.exports = Object.assign || function (target, source) {
 
 }).call(this,require('_process'))
 },{"_process":13}],41:[function(require,module,exports){
+
+/**
+ * This is the web browser implementation of `debug()`.
+ *
+ * Expose `debug()` as the module.
+ */
+
+exports = module.exports = require('./debug');
+exports.log = log;
+exports.formatArgs = formatArgs;
+exports.save = save;
+exports.load = load;
+exports.useColors = useColors;
+
+/**
+ * Use chrome.storage.local if we are in an app
+ */
+
+var storage;
+
+if (typeof chrome !== 'undefined' && typeof chrome.storage !== 'undefined')
+  storage = chrome.storage.local;
+else
+  storage = localstorage();
+
+/**
+ * Colors.
+ */
+
+exports.colors = [
+  'lightseagreen',
+  'forestgreen',
+  'goldenrod',
+  'dodgerblue',
+  'darkorchid',
+  'crimson'
+];
+
+/**
+ * Currently only WebKit-based Web Inspectors, Firefox >= v31,
+ * and the Firebug extension (any Firefox version) are known
+ * to support "%c" CSS customizations.
+ *
+ * TODO: add a `localStorage` variable to explicitly enable/disable colors
+ */
+
+function useColors() {
+  // is webkit? http://stackoverflow.com/a/16459606/376773
+  return ('WebkitAppearance' in document.documentElement.style) ||
+    // is firebug? http://stackoverflow.com/a/398120/376773
+    (window.console && (console.firebug || (console.exception && console.table))) ||
+    // is firefox >= v31?
+    // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
+    (navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31);
+}
+
+/**
+ * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
+ */
+
+exports.formatters.j = function(v) {
+  return JSON.stringify(v);
+};
+
+
+/**
+ * Colorize log arguments if enabled.
+ *
+ * @api public
+ */
+
+function formatArgs() {
+  var args = arguments;
+  var useColors = this.useColors;
+
+  args[0] = (useColors ? '%c' : '')
+    + this.namespace
+    + (useColors ? ' %c' : ' ')
+    + args[0]
+    + (useColors ? '%c ' : ' ')
+    + '+' + exports.humanize(this.diff);
+
+  if (!useColors) return args;
+
+  var c = 'color: ' + this.color;
+  args = [args[0], c, 'color: inherit'].concat(Array.prototype.slice.call(args, 1));
+
+  // the final "%c" is somewhat tricky, because there could be other
+  // arguments passed either before or after the %c, so we need to
+  // figure out the correct index to insert the CSS into
+  var index = 0;
+  var lastC = 0;
+  args[0].replace(/%[a-z%]/g, function(match) {
+    if ('%%' === match) return;
+    index++;
+    if ('%c' === match) {
+      // we only are interested in the *last* %c
+      // (the user may have provided their own)
+      lastC = index;
+    }
+  });
+
+  args.splice(lastC, 0, c);
+  return args;
+}
+
+/**
+ * Invokes `console.log()` when available.
+ * No-op when `console.log` is not a "function".
+ *
+ * @api public
+ */
+
+function log() {
+  // this hackery is required for IE8/9, where
+  // the `console.log` function doesn't have 'apply'
+  return 'object' === typeof console
+    && console.log
+    && Function.prototype.apply.call(console.log, console, arguments);
+}
+
+/**
+ * Save `namespaces`.
+ *
+ * @param {String} namespaces
+ * @api private
+ */
+
+function save(namespaces) {
+  try {
+    if (null == namespaces) {
+      storage.removeItem('debug');
+    } else {
+      storage.debug = namespaces;
+    }
+  } catch(e) {}
+}
+
+/**
+ * Load `namespaces`.
+ *
+ * @return {String} returns the previously persisted debug modes
+ * @api private
+ */
+
+function load() {
+  var r;
+  try {
+    r = storage.debug;
+  } catch(e) {}
+  return r;
+}
+
+/**
+ * Enable namespaces listed in `localStorage.debug` initially.
+ */
+
+exports.enable(load());
+
+/**
+ * Localstorage attempts to return the localstorage.
+ *
+ * This is necessary because safari throws
+ * when a user disables cookies/localstorage
+ * and you attempt to access it.
+ *
+ * @return {LocalStorage}
+ * @api private
+ */
+
+function localstorage(){
+  try {
+    return window.localStorage;
+  } catch (e) {}
+}
+
+},{"./debug":42}],42:[function(require,module,exports){
+
+/**
+ * This is the common logic for both the Node.js and web browser
+ * implementations of `debug()`.
+ *
+ * Expose `debug()` as the module.
+ */
+
+exports = module.exports = debug;
+exports.coerce = coerce;
+exports.disable = disable;
+exports.enable = enable;
+exports.enabled = enabled;
+exports.humanize = require('ms');
+
+/**
+ * The currently active debug mode names, and names to skip.
+ */
+
+exports.names = [];
+exports.skips = [];
+
+/**
+ * Map of special "%n" handling functions, for the debug "format" argument.
+ *
+ * Valid key names are a single, lowercased letter, i.e. "n".
+ */
+
+exports.formatters = {};
+
+/**
+ * Previously assigned color.
+ */
+
+var prevColor = 0;
+
+/**
+ * Previous log timestamp.
+ */
+
+var prevTime;
+
+/**
+ * Select a color.
+ *
+ * @return {Number}
+ * @api private
+ */
+
+function selectColor() {
+  return exports.colors[prevColor++ % exports.colors.length];
+}
+
+/**
+ * Create a debugger with the given `namespace`.
+ *
+ * @param {String} namespace
+ * @return {Function}
+ * @api public
+ */
+
+function debug(namespace) {
+
+  // define the `disabled` version
+  function disabled() {
+  }
+  disabled.enabled = false;
+
+  // define the `enabled` version
+  function enabled() {
+
+    var self = enabled;
+
+    // set `diff` timestamp
+    var curr = +new Date();
+    var ms = curr - (prevTime || curr);
+    self.diff = ms;
+    self.prev = prevTime;
+    self.curr = curr;
+    prevTime = curr;
+
+    // add the `color` if not set
+    if (null == self.useColors) self.useColors = exports.useColors();
+    if (null == self.color && self.useColors) self.color = selectColor();
+
+    var args = Array.prototype.slice.call(arguments);
+
+    args[0] = exports.coerce(args[0]);
+
+    if ('string' !== typeof args[0]) {
+      // anything else let's inspect with %o
+      args = ['%o'].concat(args);
+    }
+
+    // apply any `formatters` transformations
+    var index = 0;
+    args[0] = args[0].replace(/%([a-z%])/g, function(match, format) {
+      // if we encounter an escaped % then don't increase the array index
+      if (match === '%%') return match;
+      index++;
+      var formatter = exports.formatters[format];
+      if ('function' === typeof formatter) {
+        var val = args[index];
+        match = formatter.call(self, val);
+
+        // now we need to remove `args[index]` since it's inlined in the `format`
+        args.splice(index, 1);
+        index--;
+      }
+      return match;
+    });
+
+    if ('function' === typeof exports.formatArgs) {
+      args = exports.formatArgs.apply(self, args);
+    }
+    var logFn = enabled.log || exports.log || console.log.bind(console);
+    logFn.apply(self, args);
+  }
+  enabled.enabled = true;
+
+  var fn = exports.enabled(namespace) ? enabled : disabled;
+
+  fn.namespace = namespace;
+
+  return fn;
+}
+
+/**
+ * Enables a debug mode by namespaces. This can include modes
+ * separated by a colon and wildcards.
+ *
+ * @param {String} namespaces
+ * @api public
+ */
+
+function enable(namespaces) {
+  exports.save(namespaces);
+
+  var split = (namespaces || '').split(/[\s,]+/);
+  var len = split.length;
+
+  for (var i = 0; i < len; i++) {
+    if (!split[i]) continue; // ignore empty strings
+    namespaces = split[i].replace(/\*/g, '.*?');
+    if (namespaces[0] === '-') {
+      exports.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
+    } else {
+      exports.names.push(new RegExp('^' + namespaces + '$'));
+    }
+  }
+}
+
+/**
+ * Disable debug output.
+ *
+ * @api public
+ */
+
+function disable() {
+  exports.enable('');
+}
+
+/**
+ * Returns true if the given mode name is enabled, false otherwise.
+ *
+ * @param {String} name
+ * @return {Boolean}
+ * @api public
+ */
+
+function enabled(name) {
+  var i, len;
+  for (i = 0, len = exports.skips.length; i < len; i++) {
+    if (exports.skips[i].test(name)) {
+      return false;
+    }
+  }
+  for (i = 0, len = exports.names.length; i < len; i++) {
+    if (exports.names[i].test(name)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Coerce `val`.
+ *
+ * @param {Mixed} val
+ * @return {Mixed}
+ * @api private
+ */
+
+function coerce(val) {
+  if (val instanceof Error) return val.stack || val.message;
+  return val;
+}
+
+},{"ms":43}],43:[function(require,module,exports){
+/**
+ * Helpers.
+ */
+
+var s = 1000;
+var m = s * 60;
+var h = m * 60;
+var d = h * 24;
+var y = d * 365.25;
+
+/**
+ * Parse or format the given `val`.
+ *
+ * Options:
+ *
+ *  - `long` verbose formatting [false]
+ *
+ * @param {String|Number} val
+ * @param {Object} options
+ * @return {String|Number}
+ * @api public
+ */
+
+module.exports = function(val, options){
+  options = options || {};
+  if ('string' == typeof val) return parse(val);
+  return options.long
+    ? long(val)
+    : short(val);
+};
+
+/**
+ * Parse the given `str` and return milliseconds.
+ *
+ * @param {String} str
+ * @return {Number}
+ * @api private
+ */
+
+function parse(str) {
+  var match = /^((?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|years?|yrs?|y)?$/i.exec(str);
+  if (!match) return;
+  var n = parseFloat(match[1]);
+  var type = (match[2] || 'ms').toLowerCase();
+  switch (type) {
+    case 'years':
+    case 'year':
+    case 'yrs':
+    case 'yr':
+    case 'y':
+      return n * y;
+    case 'days':
+    case 'day':
+    case 'd':
+      return n * d;
+    case 'hours':
+    case 'hour':
+    case 'hrs':
+    case 'hr':
+    case 'h':
+      return n * h;
+    case 'minutes':
+    case 'minute':
+    case 'mins':
+    case 'min':
+    case 'm':
+      return n * m;
+    case 'seconds':
+    case 'second':
+    case 'secs':
+    case 'sec':
+    case 's':
+      return n * s;
+    case 'milliseconds':
+    case 'millisecond':
+    case 'msecs':
+    case 'msec':
+    case 'ms':
+      return n;
+  }
+}
+
+/**
+ * Short format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function short(ms) {
+  if (ms >= d) return Math.round(ms / d) + 'd';
+  if (ms >= h) return Math.round(ms / h) + 'h';
+  if (ms >= m) return Math.round(ms / m) + 'm';
+  if (ms >= s) return Math.round(ms / s) + 's';
+  return ms + 'ms';
+}
+
+/**
+ * Long format for `ms`.
+ *
+ * @param {Number} ms
+ * @return {String}
+ * @api private
+ */
+
+function long(ms) {
+  return plural(ms, d, 'day')
+    || plural(ms, h, 'hour')
+    || plural(ms, m, 'minute')
+    || plural(ms, s, 'second')
+    || ms + ' ms';
+}
+
+/**
+ * Pluralization helper.
+ */
+
+function plural(ms, n, name) {
+  if (ms < n) return;
+  if (ms < n * 1.5) return Math.floor(ms / n) + ' ' + name;
+  return Math.ceil(ms / n) + ' ' + name + 's';
+}
+
+},{}],44:[function(require,module,exports){
 (function (process,__dirname){
 
 /**
@@ -10091,7 +10821,7 @@ Object.defineProperty(proto, 'version', {
 
 
 }).call(this,require('_process'),"/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport/node_modules/node-pre-gyp/lib")
-},{"../package":52,"./pre-binding":42,"_process":13,"child_process":2,"events":9,"fs":2,"nopt":46,"npmlog":48,"path":12,"util":33}],42:[function(require,module,exports){
+},{"../package":55,"./pre-binding":45,"_process":13,"child_process":2,"events":9,"fs":2,"nopt":49,"npmlog":51,"path":12,"util":33}],45:[function(require,module,exports){
 var fs = require('fs');
 var versioning = require('../lib/util/versioning.js')
 var existsSync = require('fs').existsSync || require('path').existsSync;
@@ -10117,7 +10847,7 @@ exports.find = function(package_json_path,opts) {
    return path.join(meta.module_path,meta.module_name + '.node');
 }
 
-},{"../lib/util/versioning.js":45,"fs":2,"path":12}],43:[function(require,module,exports){
+},{"../lib/util/versioning.js":48,"fs":2,"path":12}],46:[function(require,module,exports){
 module.exports={
   "0.6.3": {
     "node_abi": 1,
@@ -10585,7 +11315,7 @@ module.exports={
   }
 }
 
-},{}],44:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports={
   "0.10.0": "0.11.13",
   "0.10.0-rc1": "0.11.13",
@@ -10614,7 +11344,7 @@ module.exports={
   "0.4.2": "0.8.17"
 }
 
-},{}],45:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 (function (process){
 
 module.exports = exports;
@@ -10776,7 +11506,7 @@ module.exports.evaluate = function(package_json,options) {
 }
 
 }).call(this,require('_process'))
-},{"./abi_crosswalk.json":43,"./nw_crosswalk.json":44,"_process":13,"path":12,"semver":51,"url":31}],46:[function(require,module,exports){
+},{"./abi_crosswalk.json":46,"./nw_crosswalk.json":47,"_process":13,"path":12,"semver":54,"url":31}],49:[function(require,module,exports){
 (function (process){
 // info about each config option.
 
@@ -11192,7 +11922,7 @@ function resolveShort (arg, shorthands, shortAbbr, abbrevs) {
 }
 
 }).call(this,require('_process'))
-},{"_process":13,"abbrev":47,"path":12,"stream":29,"url":31}],47:[function(require,module,exports){
+},{"_process":13,"abbrev":50,"path":12,"stream":29,"url":31}],50:[function(require,module,exports){
 
 module.exports = exports = abbrev.abbrev = abbrev
 
@@ -11256,7 +11986,7 @@ function lexSort (a, b) {
   return a === b ? 0 : a > b ? 1 : -1
 }
 
-},{}],48:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 (function (process){
 var EE = require('events').EventEmitter
 var log = exports = module.exports = new EE
@@ -11414,7 +12144,7 @@ log.addLevel('error', 5000, { fg: 'red', bg: 'black' }, 'ERR!')
 log.addLevel('silent', Infinity)
 
 }).call(this,require('_process'))
-},{"_process":13,"ansi":49,"events":9,"util":33}],49:[function(require,module,exports){
+},{"_process":13,"ansi":52,"events":9,"util":33}],52:[function(require,module,exports){
 
 /**
  * References:
@@ -11821,7 +12551,7 @@ function toArray (a) {
   return rtn
 }
 
-},{"./newlines":50}],50:[function(require,module,exports){
+},{"./newlines":53}],53:[function(require,module,exports){
 
 /**
  * Accepts any node Stream instance and hijacks its "write()" function,
@@ -11894,7 +12624,7 @@ function processByte (stream, b) {
   }
 }
 
-},{"assert":3}],51:[function(require,module,exports){
+},{"assert":3}],54:[function(require,module,exports){
 ;(function(exports) {
 
 // export the class if we are in a Node-like system.
@@ -12935,7 +13665,7 @@ if (typeof define === 'function' && define.amd)
   semver = {}
 );
 
-},{}],52:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 module.exports={
   "name": "node-pre-gyp",
   "description": "Node.js native addon binary install tool",
@@ -13022,25 +13752,25 @@ module.exports={
   "readme": "ERROR: No README data found!"
 }
 
-},{}],53:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 (function (Buffer){
 /*jslint node: true */
-"use strict";
+'use strict';
 
 // Copyright 2011 Chris Williams <chris@iterativedesigns.com>
 
 module.exports = {
   raw: function (emitter, buffer) {
-    emitter.emit("data", buffer);
+    emitter.emit('data', buffer);
   },
 
   //encoding: ascii utf8 utf16le ucs2 base64 binary hex
   //More: http://nodejs.org/api/buffer.html#buffer_buffer
   readline: function (delimiter, encoding) {
-    if (typeof delimiter === "undefined" || delimiter === null) { delimiter = "\r"; }
-    if (typeof encoding  === "undefined" || encoding  === null) { encoding  = "utf8"; }
+    if (typeof delimiter === 'undefined' || delimiter === null) { delimiter = '\r'; }
+    if (typeof encoding  === 'undefined' || encoding  === null) { encoding  = 'utf8'; }
     // Delimiter buffer saved in closure
-    var data = "";
+    var data = '';
     return function (emitter, buffer) {
       // Collect data
       data += buffer.toString(encoding);
@@ -13068,10 +13798,9 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5}],54:[function(require,module,exports){
+},{"buffer":5}],57:[function(require,module,exports){
 (function (process,Buffer,__dirname){
-/*jslint node: true */
-"use strict";
+'use strict';
 
 // Copyright 2011 Chris Williams <chris@iterativedesigns.com>
 
@@ -13079,6 +13808,7 @@ module.exports = {
 // node-pre-gyp, if something fails or package not available fallback
 // to regular build from source.
 
+var debug = require('debug')('serialport');
 var binary = require('node-pre-gyp');
 var path = require('path');
 var PACKAGE_JSON = path.join(__dirname, 'package.json');
@@ -13094,7 +13824,12 @@ var path = require('path');
 var async = require('async');
 var exec = require('child_process').exec;
 
-function SerialPortFactory() {
+function SerialPortFactory(_spfOptions) {
+  _spfOptions = _spfOptions || {};
+
+  var spfOptions = {};
+
+  spfOptions.queryPortsByPath =  (_spfOptions.queryPortsByPath === true ? true : false);
 
   var factory = this;
 
@@ -13105,8 +13840,8 @@ function SerialPortFactory() {
   var DATABITS = [5, 6, 7, 8];
   var STOPBITS = [1, 1.5, 2];
   var PARITY = ['none', 'even', 'mark', 'odd', 'space'];
-  var FLOWCONTROLS = ["XON", "XOFF", "XANY", "RTSCTS"];
-  var SETS = ["rts", "cts", "dtr", "dts"];
+  var FLOWCONTROLS = ['XON', 'XOFF', 'XANY', 'RTSCTS'];
+  var SETS = ['rts', 'cts', 'dtr', 'dts', 'brk'];
 
 
   // Stuff from ReadStream, refactored for our usage:
@@ -13132,10 +13867,11 @@ function SerialPortFactory() {
     xon: false,
     xoff: false,
     xany: false,
-    rts: false,
+    rts: true,
     cts: false,
-    dtr: false,
+    dtr: true,
     dts: false,
+    brk: false,
     databits: 8,
     stopbits: 1,
     buffersize: 256,
@@ -13170,6 +13906,7 @@ function SerialPortFactory() {
     };
 
     var err;
+
 
     options.baudRate = options.baudRate || options.baudrate || _options.baudrate;
 
@@ -13211,13 +13948,13 @@ function SerialPortFactory() {
       if (typeof fc === 'boolean') {
         options.rtscts = true;
       } else {
-        fc.forEach(function (flowControl) {
+        var clean = fc.every(function (flowControl) {
           var fcup = flowControl.toUpperCase();
           var idx = FLOWCONTROLS.indexOf(fcup);
           if (idx < 0) {
-            var err = new Error('Invalid "flowControl": ' + fcup + ". Valid options: " + FLOWCONTROLS.join(", "));
+            var err = new Error('Invalid "flowControl": ' + fcup + '. Valid options: ' + FLOWCONTROLS.join(', '));
             callback(err);
-            return;
+            return false;
           } else {
 
             // "XON", "XOFF", "XANY", "DTRDTS", "RTSCTS"
@@ -13227,8 +13964,12 @@ function SerialPortFactory() {
               case 2: options.xany = true;  break;
               case 3: options.rtscts = true; break;
             }
+            return true;
           }
         });
+        if(!clean){
+          return;
+        }
       }
     }
 
@@ -13245,9 +13986,9 @@ function SerialPortFactory() {
         return;
       }
       if (!err) {
-        err = new Error("Disconnected");
+        err = new Error('Disconnected');
       }
-      self.emit("disconnect", err);
+      self.emit('disconnect', err);
     };
 
     if (process.platform !== 'win32') {
@@ -13282,7 +14023,6 @@ function SerialPortFactory() {
         if (callback) {
           callback(err);
         } else {
-          // console.log("open");
           self.emit('error', err);
         }
         return;
@@ -13312,7 +14052,8 @@ function SerialPortFactory() {
   SerialPort.prototype.write = function (buffer, callback) {
     var self = this;
     if (!this.fd) {
-      var err = new Error("Serialport not open.");
+      debug('Write attempted, but serialport not available - FD is not set');
+      var err = new Error('Serialport not open.');
       if (callback) {
         callback(err);
       } else {
@@ -13325,6 +14066,7 @@ function SerialPortFactory() {
     if (!Buffer.isBuffer(buffer)) {
       buffer = new Buffer(buffer);
     }
+    debug('Write: '+JSON.stringify(buffer));
     factory.SerialPortBinding.write(this.fd, buffer, function (err, results) {
       if (callback) {
         callback(err, results);
@@ -13371,7 +14113,7 @@ function SerialPortFactory() {
             if (self.fd >= 0) {
               self.serialPoller.start();
             }
-          } else if (err.code && (err.code === "EBADF" || err.code === 'ENXIO' || (err.errno === -1 || err.code === 'UNKNOWN'))) { // handle edge case were mac/unix doesn't clearly know the error.
+          } else if (err.code && (err.code === 'EBADF' || err.code === 'ENXIO' || (err.errno === -1 || err.code === 'UNKNOWN'))) { // handle edge case were mac/unix doesn't clearly know the error.
             self.disconnected(err);
           } else {
             self.fd = null;
@@ -13456,12 +14198,12 @@ function SerialPortFactory() {
     if (self.options.disconnectedCallback) {
       self.options.disconnectedCallback(err);
     } else {
-      self.emit("disconnect", err);
+      self.emit('disconnect', err);
     }
     self.paused = true;
     self.closing = true;
 
-    self.emit("close");
+    self.emit('close');
 
     // clean up all other items
     fd = self.fd;
@@ -13469,13 +14211,13 @@ function SerialPortFactory() {
     try {
       factory.SerialPortBinding.close(fd, function (err) {
         if (err) {
-          console.log('Disconnect completed with error:' + err);
+          debug('Disconnect completed with error: '+JSON.stringify(err));
         } else {
-          console.log('Disconnect completed');
+          debug('Disconnect completed.');
         }
       });
     } catch (e) {
-      console.log('Disconnect failed with exception', e);
+      debug('Disconnect completed with an exception: '+JSON.stringify(e));
     }
 
     self.removeAllListeners();
@@ -13499,7 +14241,7 @@ function SerialPortFactory() {
       return;
     }
     if (!fd) {
-      var err = new Error("Serialport not open.");
+      var err = new Error('Serialport not open.');
       if (callback) {
         callback(err);
       } else {
@@ -13556,29 +14298,31 @@ function SerialPortFactory() {
         var lines = output.split('\n');
         for (var i = 0; i < lines.length; i++) {
           var line = lines[i].trim();
-          if (line !== "") {
-            var line_parts = lines[i].split("=");
+          if (line !== '') {
+            var line_parts = lines[i].split('=');
             result[line_parts[0].trim()] = line_parts[1].trim();
           }
         }
         return result;
       }
       var as_json = udev_output_to_json(udev_output);
-      var pnpId = as_json.DEVLINKS.split(" ")[0];
-      pnpId = pnpId.substring(pnpId.lastIndexOf("/") + 1);
+      var pnpId = as_json.DEVLINKS.split(' ')[0];
+      pnpId = pnpId.substring(pnpId.lastIndexOf('/') + 1);
       var port = {
         comName: as_json.DEVNAME,
         manufacturer: as_json.ID_VENDOR,
         serialNumber: as_json.ID_SERIAL,
         pnpId: pnpId,
-        vendorId: "0x" + as_json.ID_VENDOR_ID,
-        productId: "0x" + as_json.ID_MODEL_ID
+        vendorId: '0x' + as_json.ID_VENDOR_ID,
+        productId: '0x' + as_json.ID_MODEL_ID
       };
 
       callback(null, port);
     }
 
-    fs.readdir("/dev/serial/by-id", function (err, files) {
+    var dirName = (spfOptions.queryPortsByPath ? '/dev/serial/by-path' : '/dev/serial/by-id');
+
+    fs.readdir(dirName, function (err, files) {
       if (err) {
         // if this directory is not found this could just be because it's not plugged in
         if (err.errno === 34) {
@@ -13593,7 +14337,6 @@ function SerialPortFactory() {
         return;
       }
 
-      var dirName = "/dev/serial/by-id";
       async.map(files, function (file, callback) {
         var fileName = path.join(dirName, file);
         fs.readlink(fileName, function (err, link) {
@@ -13629,7 +14372,7 @@ function SerialPortFactory() {
     var fd = self.fd;
 
     if (!fd) {
-      var err = new Error("Serialport not open.");
+      var err = new Error('Serialport not open.');
       if (callback) {
         callback(err);
       } else {
@@ -13660,13 +14403,25 @@ function SerialPortFactory() {
     options = (typeof option !== 'function') && options || {};
 
     // flush defaults, then update with provided details
-    options.rts = options.rts || options.rts || _options.rts;
-    options.cts = options.cts || options.cts || _options.cts;
-    options.dtr = options.dtr || options.dtr || _options.dtr;
-    options.dts = options.dts || options.dts || _options.dts;
+
+    if(!options.hasOwnProperty('rts')){
+      options.rts = _options.rts;
+    }
+    if(!options.hasOwnProperty('dtr')){
+      options.dtr = _options.dtr;
+    }
+    if(!options.hasOwnProperty('cts')){
+      options.cts = _options.cts;
+    }
+    if(!options.hasOwnProperty('dts')){
+      options.dts = _options.dts;
+    }
+    if(!options.hasOwnProperty('brk')){
+      options.brk = _options.brk;
+    }
 
     if (!fd) {
-      var err = new Error("Serialport not open.");
+      var err = new Error('Serialport not open.');
       if (callback) {
         callback(err);
       } else {
@@ -13693,7 +14448,7 @@ function SerialPortFactory() {
     var fd = this.fd;
 
     if (!fd) {
-      var err = new Error("Serialport not open.");
+      var err = new Error('Serialport not open.');
       if (callback) {
         callback(err);
       } else {
@@ -13734,8 +14489,9 @@ function SerialPortFactory() {
 util.inherits(SerialPortFactory, EventEmitter);
 
 module.exports = new SerialPortFactory();
+
 }).call(this,require('_process'),require("buffer").Buffer,"/node_modules/cylon-firmata/node_modules/firmata/node_modules/serialport")
-},{"./parsers":53,"_process":13,"async":40,"buffer":5,"child_process":2,"events":9,"fs":2,"node-pre-gyp":41,"path":12,"stream":29,"util":33}],55:[function(require,module,exports){
+},{"./parsers":56,"_process":13,"async":40,"buffer":5,"child_process":2,"debug":41,"events":9,"fs":2,"node-pre-gyp":44,"path":12,"stream":29,"util":33}],58:[function(require,module,exports){
 /*
  * Analog Sensor driver
  * http://cylonjs.com
@@ -13776,7 +14532,7 @@ var events = [
 /**
  * An Analog Sensor driver
  *
- * @constructor
+ * @constructor analog-sensor
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -13807,11 +14563,18 @@ Cylon.Utils.subclass(AnalogSensor, Cylon.Driver);
 /**
  * Gets the current value from the Analog Sensor
  *
- * @return {Number} the current `this.analogVal`
+ * @param {Function} [callback] invoked with `err, value` as args
+ * @return {Number} the current sensor value
  * @publish
  */
-AnalogSensor.prototype.analogRead = function() {
-  return this.analogVal;
+AnalogSensor.prototype.analogRead = function(callback) {
+  var val = this.analogVal;
+
+  if (typeof callback === "function") {
+    callback(null, val);
+  }
+
+  return val;
 };
 
 /**
@@ -13846,7 +14609,7 @@ AnalogSensor.prototype.halt = function(callback) {
   callback();
 };
 
-},{"cylon":76}],56:[function(require,module,exports){
+},{"cylon":83}],59:[function(require,module,exports){
 /*
  * Cylon button driver
  * http://cylonjs.com
@@ -13878,7 +14641,7 @@ var events = [
 /**
  * A Button driver
  *
- * @constructor
+ * @constructor button
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -13906,10 +14669,15 @@ Cylon.Utils.subclass(Button, Cylon.Driver);
 /**
  * Check whether or not the Button is currently pressed
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Boolean} whether or not the button is pressed
  * @publish
  */
-Button.prototype.isPressed = function() {
+Button.prototype.isPressed = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.pressed);
+  }
+
   return this.pressed;
 };
 
@@ -13948,7 +14716,7 @@ Button.prototype.halt = function(callback) {
   callback();
 };
 
-},{"cylon":76}],57:[function(require,module,exports){
+},{"cylon":83}],60:[function(require,module,exports){
 /*
  * Continuous Servo driver
  * http://cylonjs.com
@@ -13964,14 +14732,18 @@ var Cylon = require("cylon");
 /**
  * A Continuous Servo driver
  *
- * @constructor
+ * @constructor continuous-servo
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
  */
-var ContinuousServo = module.exports = function ContinuousServo() {
+var ContinuousServo = module.exports = function(opts) {
   ContinuousServo.__super__.constructor.apply(this, arguments);
+
   this.angleValue = 0;
+  this.freq = opts.freq || null;
+  this.pwmScale = opts.pwmScale || { bottom: 0, top: 180 };
+  this.pulseWidth = opts.pulseWidth || { min: 500, max: 2400 };
 
   if (this.pin == null) {
     throw new Error("No pin specified for Continuous Servo. Cannot proceed");
@@ -14010,36 +14782,73 @@ ContinuousServo.prototype.halt = function(callback) {
 /**
  * Stops the Continuous Servo's rotation
  *
+ * @param {Function} callback (err, val) triggers when write is complete
  * @return {Boolean|null}
  * @publish
  */
-ContinuousServo.prototype.stop = function() {
-  return this.connection.servoWrite(this.pin, 90);
+ContinuousServo.prototype.stop = function(callback) {
+  var scaledDuty = (90).fromScale(
+    this.pwmScale.bottom,
+    this.pwmScale.top
+  );
+
+  this.connection.servoWrite(
+    this.pin,
+    scaledDuty,
+    this.freq,
+    this.pulseWidth,
+    callback
+  );
 };
 
 /**
  * Rotates the Continuous Servo clockwise
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {Boolean|null}
  * @publish
  */
-ContinuousServo.prototype.clockwise = function() {
-  Cylon.Logger.debug("Servo on pin " + this.pin + " turning clockwise");
-  return this.connection.servoWrite(this.pin, 180);
+ContinuousServo.prototype.clockwise = function(callback) {
+  return this.rotate("clockwise", callback);
 };
 
 /**
  * Rotates the Continuous Servo counter-clockwise
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {Boolean|null}
  * @publish
  */
-ContinuousServo.prototype.counterClockwise = function() {
-  Cylon.Logger.debug("Servo on pin " + this.pin + " turning counter clockwise");
-  return this.connection.servoWrite(this.pin, 89);
+ContinuousServo.prototype.counterClockwise = function(callback) {
+  return this.rotate("counter-clockwise", callback);
 };
 
-},{"cylon":76}],58:[function(require,module,exports){
+/**
+ * Rotates the Continuous Servo
+ *
+ * @param {String} direction 'clockwise' or 'counter-clockwise'
+ * @param {Function} [callback] - (err, val) triggers when write is complete
+ * @return {Boolean|null}
+ * @publish
+ */
+ContinuousServo.prototype.rotate = function(direction, callback) {
+  var spin = (direction === "clockwise") ? 180 : 89;
+
+  var scaledDuty = (spin).fromScale(
+    this.pwmScale.bottom,
+    this.pwmScale.top
+  );
+
+  this.connection.servoWrite(
+    this.pin,
+    scaledDuty,
+    this.freq,
+    this.pulseWidth,
+    callback
+  );
+};
+
+},{"cylon":83}],61:[function(require,module,exports){
 /*
  * DirectPin driver
  * http://cylonjs.com
@@ -14055,7 +14864,7 @@ var Cylon = require("cylon");
 /**
  * A Direct Pin driver
  *
- * @constructor
+ * @constructor direct-pin
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14063,8 +14872,7 @@ var Cylon = require("cylon");
 var DirectPin = module.exports = function DirectPin() {
   DirectPin.__super__.constructor.apply(this, arguments);
 
-  this.dReadSet = false;
-  this.aReadSet = false;
+  this.readSet = false;
   this.high = false;
 
   if (this.pin == null) {
@@ -14110,11 +14918,24 @@ DirectPin.prototype.halt = function(callback) {
  * Writes a digital value to the pin
  *
  * @param {Number} value value to write to the pin
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-DirectPin.prototype.digitalWrite = function(value) {
-  this.connection.digitalWrite(this.pin, value);
+DirectPin.prototype.digitalWrite = function(value, callback) {
+  this.connection.digitalWrite(this.pin, value, callback);
+};
+
+/**
+ * Writes an analog value to the pin
+ *
+ * @param {Number} value value to write to the pin
+ * @param {Function} [callback] - (err, val) triggers when write is complete
+ * @return {null}
+ * @publish
+ */
+DirectPin.prototype.analogWrite = function(value, callback) {
+  this.connection.analogWrite(this.pin, value, callback);
 };
 
 /**
@@ -14127,21 +14948,7 @@ DirectPin.prototype.digitalWrite = function(value) {
  * @publish
  */
 DirectPin.prototype.digitalRead = function(callback) {
-  if (!this.dReadSet) {
-    this.connection.digitalRead(this.pin, callback);
-  }
-  this.dReadSet = true;
-};
-
-/**
- * Writes an analog value to the pin
- *
- * @param {Number} value value to write to the pin
- * @return {null}
- * @publish
- */
-DirectPin.prototype.analogWrite = function(value) {
-  this.connection.analogWrite(this.pin, value);
+  this._read("d", callback);
 };
 
 /**
@@ -14154,36 +14961,48 @@ DirectPin.prototype.analogWrite = function(value) {
  * @publish
  */
 DirectPin.prototype.analogRead = function(callback) {
-  if (!this.aReadSet) {
-    this.connection.analogRead(this.pin, callback);
-  }
-  this.aReadSet = true;
+  this._read("a", callback);
 };
-// Public: ServoWrite
+
+DirectPin.prototype._read = function(type, callback) {
+  if (!this.readSet) {
+    switch(type){
+      case "a":
+        this.connection.analogRead(this.pin, callback);
+        break;
+      case "d":
+        this.connection.digitalRead(this.pin, callback);
+        break;
+    }
+    this.readSet = true;
+  }
+};
 
 /**
  * Writes a servo value to the pin
  *
  * @param {Number} value value to write to the pin
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-DirectPin.prototype.servoWrite = function(angle) {
-  return this.connection.servoWrite(this.pin, angle);
+DirectPin.prototype.servoWrite = function(angle, callback) {
+  return this.connection.servoWrite(this.pin, angle, callback);
 };
 
 /**
  * Writes a PWM value to the pin
  *
  * @param {Number} value value to write to the pin
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-DirectPin.prototype.pwmWrite = function(value) {
-  return this.connection.pwmWrite(this.pin, value);
+DirectPin.prototype.pwmWrite = function(value, callback) {
+  return this.connection.pwmWrite(this.pin, value, callback);
 };
 
-},{"cylon":76}],59:[function(require,module,exports){
+},{"cylon":83}],62:[function(require,module,exports){
 (function (__dirname){
 /*
  * SHARP IR Range Sensor driver
@@ -14219,7 +15038,7 @@ var events = [
 /**
  * A IR Range Sensor driver
  *
- * @constructor
+ * @constructor ir-range-sensor
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14228,25 +15047,7 @@ var events = [
 var IrRangeSensor = module.exports = function IrRangeSensor(opts) {
   IrRangeSensor.__super__.constructor.apply(this, arguments);
 
-  if (opts.model) {
-    var model = path.join(
-      __dirname,
-      "./ir_range_tables/" + opts.model.toLowerCase() + ".js"
-    );
-
-    this.rangeTable = require(model);
-  } else {
-    this.rangeTable = {};
-
-    var str = "IRSensor CANNOT calculate distance (range and rangecm) without";
-    str +=    " IR model number.\n";
-    str +=    "Only analogRead() values will be available.\n";
-    str +=    "To generate a distance range table, check ./node_modules";
-    str +=    "/cylon-gpio/utilities/generate-ir-rage-sensor-table.js.\n";
-    str +=    "Try passing model number as a device parameter.";
-    Cylon.Logger.info(str);
-  }
-
+  this.model = opts.model;
   this.analogVal = 0;
   this.distanceCm = 0;
   this.distanceIn = 0;
@@ -14254,6 +15055,8 @@ var IrRangeSensor = module.exports = function IrRangeSensor(opts) {
   if (this.pin == null) {
     throw new Error("No pin specified for IR Range Sensor. Cannot proceed");
   }
+
+  this._setRangeTable();
 
   this.commands = {
     analog_read: this.analogRead,
@@ -14266,6 +15069,26 @@ var IrRangeSensor = module.exports = function IrRangeSensor(opts) {
 
 Cylon.Utils.subclass(IrRangeSensor, Cylon.Driver);
 
+IrRangeSensor.prototype._setRangeTable = function() {
+  if (this.model) {
+    var model = path.join(
+      __dirname,
+      "./ir_range_tables/" + this.model.toLowerCase() + ".js"
+    );
+
+    this.rangeTable = require(model);
+  } else {
+    this.rangeTable = {};
+
+    var str = "IRSensor CANNOT calculate distance (range and rangecm) without ";
+    str +=    "IR model number.\n";
+    str +=    "Only analogRead() values will be available.\n";
+    str +=    "To generate a distance range table, check ./node_modules";
+    str +=    "/cylon-gpio/utilities/generate-ir-rage-sensor-table.js.\n";
+    str +=    "Try passing model number as a device parameter.";
+    Cylon.Logger.info(str);
+  }
+};
 /**
  * Starts the IR Range Sensor
  *
@@ -14321,35 +15144,52 @@ IrRangeSensor.prototype._calcDistances = function(analogVal) {
 /**
  * Returns the current analog value from the pin
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} current analog value, or 0 if it's not been read yet
  * @publish
  */
-IrRangeSensor.prototype.analogRead = function() {
-  return this.analogVal || 0;
+IrRangeSensor.prototype.analogRead = function(callback) {
+  var val = this.analogVal || 0;
+
+  if (typeof callback === "function") {
+    callback(null, val);
+  }
+
+  return val;
 };
 
 /**
  * Returns the current range, in centimeters
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} current detected range in centimeters
  * @publish
  */
-IrRangeSensor.prototype.rangeCm = function() {
+IrRangeSensor.prototype.rangeCm = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.distanceCm);
+  }
+
   return this.distanceCm;
 };
 
 /**
  * Returns the current range, in inches
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} current detected range in inches
  * @publish
  */
-IrRangeSensor.prototype.range = function() {
+IrRangeSensor.prototype.range = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.distanceIn);
+  }
+
   return this.distanceIn;
 };
 
 }).call(this,"/node_modules/cylon-gpio/lib")
-},{"cylon":76,"path":12}],60:[function(require,module,exports){
+},{"cylon":83,"path":12}],63:[function(require,module,exports){
 /*
  * LED driver
  * http://cylonjs.com
@@ -14365,7 +15205,7 @@ var Cylon = require("cylon");
 /**
  * A LED driver
  *
- * @constructor
+ * @constructor led
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14426,12 +15266,13 @@ Led.prototype.halt = function(callback) {
  *
  * Also sets `this.isHigh` to `true`.
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Led.prototype.turnOn = function() {
+Led.prototype.turnOn = function(callback) {
   this.isHigh = true;
-  this.connection.digitalWrite(this.pin, 1);
+  this.connection.digitalWrite(this.pin, 1, callback);
 };
 
 /**
@@ -14439,12 +15280,13 @@ Led.prototype.turnOn = function() {
  *
  * Also sets `this.isHigh` to `false`.
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Led.prototype.turnOff = function() {
+Led.prototype.turnOff = function(callback) {
   this.isHigh = false;
-  this.connection.digitalWrite(this.pin, 0);
+  this.connection.digitalWrite(this.pin, 0, callback);
 };
 
 /**
@@ -14453,49 +15295,72 @@ Led.prototype.turnOff = function() {
  * @return {null}
  * @publish
  */
-Led.prototype.toggle = function() {
+Led.prototype.toggle = function(callback) {
   if (this.isHigh) {
     this.turnOff();
   } else {
     this.turnOn();
+  }
+
+  if (typeof callback === "function") {
+    callback();
   }
 };
 
 /**
  * Returns the current brightness of the LED.
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} the current LED brightness value (0-255)
  * @publish
  */
-Led.prototype.currentBrightness = function() {
+Led.prototype.currentBrightness = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.brightnessValue);
+  }
+
   return this.brightnessValue;
 };
 
 /**
  * Sets brightness of the LED to the specified value using PWM.
  *
- * @param {Number} value PWM value to set the brightness to (0-255)
+ * @param {Number} value - PWM value to set the brightness to (0-255)
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Led.prototype.brightness = function(value) {
+Led.prototype.brightness = function(value, callback) {
   var scaledDuty = (value).fromScale(this.pwmScale.bottom, this.pwmScale.top);
 
-  this.connection.pwmWrite(this.pin, scaledDuty, this.freq);
+  this.connection.pwmWrite(
+    this.pin,
+    scaledDuty,
+    this.freq,
+    null,
+    null,
+    callback
+  );
+
   this.brightnessValue = value;
 };
 
 /**
  * Returns whether or not the LED is currently on
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Boolean} whether or not the LED is currently on
  * @publish
  */
-Led.prototype.isOn = function(){
+Led.prototype.isOn = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.isHigh);
+  }
+
   return this.isHigh;
 };
 
-},{"cylon":76}],61:[function(require,module,exports){
+},{"cylon":83}],64:[function(require,module,exports){
 /*
  * Cylon Makey Button driver
  * http://cylonjs.com
@@ -14527,7 +15392,7 @@ var events = [
 /**
  * A Makey Button driver
  *
- * @constructor
+ * @constructor makey-button
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14604,7 +15469,7 @@ MakeyButton.prototype.averageData = function() {
   return result;
 };
 
-},{"cylon":76}],62:[function(require,module,exports){
+},{"cylon":83}],65:[function(require,module,exports){
 /*
  * Maxbotix ultrasonic rangefinder driver
  * http://cylonjs.com
@@ -14638,15 +15503,16 @@ var events = [
 /**
  * A Maxbotix driver
  *
- * @constructor
+ * @constructor maxbotix
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
  */
-var Maxbotix = module.exports = function Maxbotix() {
+var Maxbotix = module.exports = function Maxbotix(opts) {
   Maxbotix.__super__.constructor.apply(this, arguments);
 
   this.analogValue = 0;
+  this.model = opts.model || "lv";
 
   if (this.pin == null) {
     throw new Error("No pin specified for Maxbotix. Cannot proceed");
@@ -14694,24 +15560,61 @@ Maxbotix.prototype.halt = function(callback) {
 /**
  * Gets the distance measured by the sonar, in inches.
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} the current measured distance, in inches
  * @publish
  */
-Maxbotix.prototype.range = function() {
-  return (254.0 / 1024.0) * 2.0 * this.analogValue;
+Maxbotix.prototype.range = function(callback) {
+  var models = ["lv", "xl", "xl-long", "hr", "hr-long"],
+      distance = this.rangeCm();
+
+  if (models.indexOf(this.model) > -1) {
+    distance = distance * 0.3937;
+  }
+
+  if (typeof callback === "function") {
+    callback(null, distance);
+  }
+
+  return distance;
 };
 
 /**
  * Gets the distance measured by the sonar, in centimeters.
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {Number} the current measured distance, in centimeters
  * @publish
  */
-Maxbotix.prototype.rangeCm = function() {
-  return (this.analogValue / 2.0) * 2.54;
+Maxbotix.prototype.rangeCm = function(callback) {
+  var distance;
+
+  switch(this.model){
+    case "lv":
+      distance = (this.analogValue / 2.0) / 0.3937;
+      break;
+    case "xl-long":
+      distance = this.analogValue * 2.0;
+      break;
+    case "hr":
+      distance = this.analogValue * 0.5;
+      break;
+    case "xl":
+    case "hr-long":
+      distance = this.analogValue;
+      break;
+    default:
+      distance = this.analogValue; // raw data, in case of unknown model
+  }
+
+  if (typeof callback === "function") {
+    callback(null, distance);
+  }
+
+  return distance;
 };
 
-},{"cylon":76}],63:[function(require,module,exports){
+},{"cylon":83}],66:[function(require,module,exports){
 /*
  * Motor driver
  * http://cylonjs.com
@@ -14727,7 +15630,7 @@ var Cylon = require("cylon");
 /**
  * A Motor driver
  *
- * @constructor
+ * @constructor motor
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14785,12 +15688,13 @@ Motor.prototype.halt = function(callback) {
  *
  * Also sets `this.isOn` to `true`.
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Motor.prototype.turnOn = function() {
+Motor.prototype.turnOn = function(callback) {
   this.isOn = true;
-  this.connection.digitalWrite(this.pin, 1);
+  this.connection.digitalWrite(this.pin, 1, callback);
 };
 
 /**
@@ -14798,61 +15702,192 @@ Motor.prototype.turnOn = function() {
  *
  * Also sets `this.isOn` to `false`.
  *
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Motor.prototype.turnOff = function() {
+Motor.prototype.turnOff = function(callback) {
   this.isOn = false;
-  this.connection.digitalWrite(this.pin, 0);
+  this.connection.digitalWrite(this.pin, 0, callback);
 };
 
 /**
  * Toggles the Motor on or off, depending on its current state
  *
+ * @param {Function} [callback] invoked with `err, value` as args
  * @return {null}
  * @publish
  */
-Motor.prototype.toggle = function() {
+Motor.prototype.toggle = function(callback) {
   if (this.isOn) {
     this.turnOff();
   } else {
     this.turnOn();
+  }
+
+  if (typeof callback === "function") {
+    callback();
   }
 };
 
 /**
  * Returns the Motor's current speed value
  *
+ * @param {Function} [callback] - (err, val)
  * @return {Number} the current motor speed
  * @publish
  */
-Motor.prototype.currentSpeed = function() {
+Motor.prototype.currentSpeed = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.speedValue);
+  }
+
   return this.speedValue;
 };
-
-// Public: Sets the speed of the motor to the value provided in the
-// speed param, speed value must be an integer between 0 and 255.
-//
-// value- params
-//
-// Returns integer.
 
 /**
  * Sets the Motor's speed to the PWM value provided (0-255)
  *
  * @param {Number} value PWM value to set the speed to (0-255)
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Motor.prototype.speed = function(value) {
+Motor.prototype.speed = function(value, callback) {
   var scaledDuty = (value).fromScale(this.pwmScale.bottom, this.pwmScale.top);
 
-  this.connection.pwmWrite(this.pin, scaledDuty, this.freq);
+  this.connection.pwmWrite(
+    this.pin,
+    scaledDuty,
+    this. freq,
+    null, null,
+    callback
+  );
+
   this.speedValue = value;
   this.isOn = this.speedValue > 0;
 };
 
-},{"cylon":76}],64:[function(require,module,exports){
+},{"cylon":83}],67:[function(require,module,exports){
+/*
+ * RGB LED strip driver
+ * http://cylonjs.com
+ *
+ * Copyright (c) 2013-2015 The Hybrid Group
+ * Licensed under the Apache 2.0 license.
+*/
+
+"use strict";
+
+var Cylon = require("cylon");
+
+/**
+ * RGB LED driver
+ *
+ * @constructor led
+ *
+ * @param {Object} opts
+ * @param {String|Number} opts.redPin the red pin to connect to
+ * @param {String|Number} opts.greenPin the green pin to connect to
+ * @param {String|Number} opts.bluePin the blue pin to connect to
+ */
+var RGBLed = module.exports = function RGBLed(opts) {
+  RGBLed.__super__.constructor.apply(this, arguments);
+
+  this.redPin = opts.redPin || null;
+  this.greenPin = opts.greenPin || null;
+  this.bluePin = opts.bluePin || null;
+
+  if (this.redPin == null) {
+    throw new Error("No red pin specified for RGB LED. Cannot proceed");
+  }
+
+  if (this.greenPin == null) {
+    throw new Error("No green pin specified for RGB LED. Cannot proceed");
+  }
+
+  if (this.bluePin == null) {
+    throw new Error("No blue pin specified for RGB LED. Cannot proceed");
+  }
+
+  this.commands = {
+    is_on: this.isOn,
+    set_rgb: this.setRGB
+  };
+};
+
+/** Subclasses the Cylon.Driver class */
+Cylon.Utils.subclass(RGBLed, Cylon.Driver);
+
+/**
+ * Starts the RGBLed
+ *
+ * @param {Function} callback to be triggered when started
+ * @return {null}
+ */
+RGBLed.prototype.start = function(callback) {
+  callback();
+};
+
+/**
+ * Stops the RGBLed
+ *
+ * @param {Function} callback to be triggered when halted
+ * @return {null}
+ */
+RGBLed.prototype.halt = function(callback) {
+  callback();
+};
+
+/**
+ * Sets the RGB LED to a specific color
+ *
+ * @param {hex} The hex value for the LED e.g. 0xff00ff
+ * @return {null}
+ * @publish
+ */
+RGBLed.prototype.setRGB = function(hex, callback) {
+  var val = this._hexToRgb(hex);
+  this.isHigh = true;
+  this.connection.pwmWrite(this.redPin, val.r);
+  this.connection.pwmWrite(this.greenPin, val.g);
+  this.connection.pwmWrite(this.bluePin, val.b);
+
+  if (typeof callback === "function") {
+    callback(null, val);
+  }
+};
+
+/**
+ * Returns whether or not the RGB LED is currently on
+ *
+ * @return {Boolean} whether or not the LED is currently on
+ * @publish
+ */
+RGBLed.prototype.isOn = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.isHigh);
+  }
+
+  return this.isHigh;
+};
+
+RGBLed.prototype._hexToRgb = function(hex) {
+  var param = hex.toString(16);
+  var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(param);
+
+  if (result) {
+    return {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    };
+  } else {
+    return { r: 0, g: 0, b: 0 };
+  }
+};
+
+},{"cylon":83}],68:[function(require,module,exports){
 /*
  * Servo driver
  * http://cylonjs.com
@@ -14868,7 +15903,7 @@ var Cylon = require("cylon");
 /**
  * A Servo driver
  *
- * @constructor
+ * @constructor servo
  *
  * @param {Object} opts
  * @param {String|Number} opts.pin the pin to connect to
@@ -14931,24 +15966,35 @@ Servo.prototype.halt = function(callback) {
  * @return {Number} the current servo angle value (0-180)
  * @publish
  */
-Servo.prototype.currentAngle = function() {
+Servo.prototype.currentAngle = function(callback) {
+  if (typeof callback === "function") {
+    callback(null, this.angleValue);
+  }
+
   return this.angleValue;
 };
 
 /**
  * Sets the angle of the servo to the provided value
  *
- * @param {Number} value the angle to point the servo to (0-180)
+ * @param {Number} value - the angle to point the servo to (0-180)
+ * @param {Function} [callback] - (err, val) triggers when write is complete
  * @return {null}
  * @publish
  */
-Servo.prototype.angle = function(value) {
+Servo.prototype.angle = function(value, callback) {
   var scaledDuty = (this.safeAngle(value)).fromScale(
     this.pwmScale.bottom,
     this.pwmScale.top
   );
 
-  this.connection.servoWrite(this.pin, scaledDuty, this.freq, this.pulseWidth);
+  this.connection.servoWrite(
+    this.pin,
+    scaledDuty,
+    this.freq,
+    this.pulseWidth,
+    callback
+  );
   this.angleValue = value;
 };
 
@@ -14977,7 +16023,7 @@ Servo.prototype.safeAngle = function(value) {
   return value;
 };
 
-},{"cylon":76}],65:[function(require,module,exports){
+},{"cylon":83}],69:[function(require,module,exports){
 /*
  * BlinkM driver
  * http://cylonjs.com
@@ -14991,6 +16037,9 @@ Servo.prototype.safeAngle = function(value) {
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
+
 var TO_RGB = 0x6e,
     FADE_TO_RGB = 0x63,
     FADE_TO_HSB = 0x68,
@@ -15008,11 +16057,11 @@ var TO_RGB = 0x6e,
 /**
  * A BlinkM Driver
  *
- * @constructor
+ * @constructor blinkm
  */
 var BlinkM = module.exports = function BlinkM() {
   BlinkM.__super__.constructor.apply(this, arguments);
-  this.address = 0x09;
+  this.address = this.address || 0x09;
 
   this.setupCommands([
     "goToRGB", "fadeToRGB", "fadeToHSB", "fadeToRandomRGB",
@@ -15021,27 +16070,7 @@ var BlinkM = module.exports = function BlinkM() {
   ]);
 };
 
-Cylon.Utils.subclass(BlinkM, Cylon.Driver);
-
-/**
- * Starts the driver
- *
- * @param {Function} callback triggered when the driver is started
- * @return {null}
- */
-BlinkM.prototype.start = function(callback) {
-  callback();
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-BlinkM.prototype.halt = function(callback) {
-  callback();
-};
+Cylon.Utils.subclass(BlinkM, I2CDriver);
 
 /**
  * Sets the color of the BlinkM to the specified combination of RGB values.
@@ -15228,7 +16257,7 @@ BlinkM.prototype.getFirmware = function(cb) {
   return this.connection.i2cRead(this.address, GET_FIRMWARE, 1, cb);
 };
 
-},{"cylon":76}],66:[function(require,module,exports){
+},{"./i2c-driver":72,"cylon":83}],70:[function(require,module,exports){
 (function (Buffer){
 /*
  * BMP180 I2C Barometric Pressure + Temperature sensor driver
@@ -15243,6 +16272,8 @@ BlinkM.prototype.getFirmware = function(cb) {
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 var BMP180_REGISTER_CALIBRATION = 0xAA,
     BMP180_REGISTER_CONTROL = 0xF4,
@@ -15274,12 +16305,12 @@ function waitTime(mode) {
 /**
  * A BMP180 Driver
  *
- * @constructor
+ * @constructor bmp180
  */
 var Bmp180 = module.exports = function Bmp180() {
   Bmp180.__super__.constructor.apply(this, arguments);
 
-  this.address = 0x77;
+  this.address = this.address || 0x77;
 
   this.commands = {
     get_pressure: this.getPressure,
@@ -15288,7 +16319,7 @@ var Bmp180 = module.exports = function Bmp180() {
   };
 };
 
-Cylon.Utils.subclass(Bmp180, Cylon.Driver);
+Cylon.Utils.subclass(Bmp180, I2CDriver);
 
 /**
  * Starts the driver
@@ -15298,16 +16329,6 @@ Cylon.Utils.subclass(Bmp180, Cylon.Driver);
  */
 Bmp180.prototype.start = function(callback) {
   this.readCoefficients(callback);
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-Bmp180.prototype.halt = function(callback) {
-  callback();
 };
 
 /**
@@ -15553,7 +16574,7 @@ Bmp180.prototype.calculatePressure = function(mode, rawPress, b5) {
 
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],67:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],71:[function(require,module,exports){
 (function (Buffer){
 /*
  * HMC6352 Digital Compass driver
@@ -15569,20 +16590,25 @@ Bmp180.prototype.calculatePressure = function(mode, rawPress, b5) {
 
 var Cylon = require("cylon");
 
+var I2CDriver = require("./i2c-driver");
+
 /**
  * A HMC6352 Driver
  *
- * @constructor
+ * @constructor hmc6352
  */
 var Hmc6352 = module.exports = function Hmc6352() {
   Hmc6352.__super__.constructor.apply(this, arguments);
-  this.address = 0x42 >> 1; // to accomodate the 7-bit device addressing
+
+  // to accomodate the 7-bit device addressing
+  this.address = this.address || 0x42 >> 1;
+
   this.commands = {
     heading: this.heading
   };
 };
 
-Cylon.Utils.subclass(Hmc6352, Cylon.Driver);
+Cylon.Utils.subclass(Hmc6352, I2CDriver);
 
 /**
  * Starts the driver
@@ -15592,16 +16618,6 @@ Cylon.Utils.subclass(Hmc6352, Cylon.Driver);
  */
 Hmc6352.prototype.start = function(callback) {
   this.connection.i2cWrite(this.address, this.commandBytes("A"));
-  callback();
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-Hmc6352.prototype.halt = function(callback) {
   callback();
 };
 
@@ -15646,7 +16662,38 @@ Hmc6352.prototype.parseHeading = function(val) {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],68:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],72:[function(require,module,exports){
+/**
+ * Cylon.js - i2c Base Driver
+ * http://cylonjs.com
+ *
+ * Copyright (c) 2013-14 The Hybrid Group
+ * Licensed under the Apache 2.0 license.
+*/
+
+"use strict";
+
+var Cylon = require("cylon");
+
+var I2CDriver = module.exports = function I2CDriver(opts) {
+  I2CDriver.__super__.constructor.apply(this, arguments);
+
+  opts = opts || {};
+
+  this.address = opts.address;
+};
+
+Cylon.Utils.subclass(I2CDriver, Cylon.Driver);
+
+I2CDriver.prototype.start = function(callback) {
+  callback();
+};
+
+I2CDriver.prototype.halt = function(callback) {
+  callback();
+};
+
+},{"cylon":83}],73:[function(require,module,exports){
 /*
  * LCD display driver
  * http://cylonjs.com
@@ -15660,6 +16707,8 @@ Hmc6352.prototype.parseHeading = function(val) {
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 // i2c commands
 var CLEARDISPLAY = 0x01,
@@ -15710,12 +16759,12 @@ var En = 0x04, // Enable bit
 /**
  * A LCD Driver
  *
- * @constructor
+ * @constructor lcd
  */
 var LCD = module.exports = function LCD() {
   LCD.__super__.constructor.apply(this, arguments);
 
-  this.address = 0x27;
+  this.address = this.address || 0x27;
   this._backlightVal = NOBACKLIGHT;
   this._displayfunction = FOURBITMODE | TWOLINE | FIVExEIGHTDOTS;
   this._displaycontrol = DISPLAYON | CURSOROFF | BLINKOFF;
@@ -15728,7 +16777,7 @@ var LCD = module.exports = function LCD() {
   ]);
 };
 
-Cylon.Utils.subclass(LCD, Cylon.Driver);
+Cylon.Utils.subclass(LCD, I2CDriver);
 
 /**
  * Starts the driver
@@ -15767,150 +16816,192 @@ LCD.prototype.start = function(callback) {
 };
 
 /**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-LCD.prototype.halt = function(callback) {
-  callback();
-};
-
-/**
  * Clears display and returns cursor to the home position (address 0).
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.clear = function() {
+LCD.prototype.clear = function(callback) {
   this._sendCommand(CLEARDISPLAY);
   Cylon.Utils.sleep(2);
+
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Returns cursor to home position.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.home = function() {
+LCD.prototype.home = function(callback) {
   this._sendCommand(RETURNHOME);
   Cylon.Utils.sleep(2);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Sets cursor position.
  *
+ * @param {Number} col
+ * @param {Number} row
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.setCursor = function(col, row) {
+LCD.prototype.setCursor = function(col, row, callback) {
   var row_offsets = [0x00, 0x40, 0x14, 0x54];
   this._sendCommand(SETDDRAMADDR | (col + row_offsets[row]));
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Sets Off of all display (D), cursor Off (C) and blink of cursor position
  * character (B).
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.displayOff = function() {
+LCD.prototype.displayOff = function(callback) {
   this._displaycontrol &= ~DISPLAYON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Sets On of all display (D), cursor On (C) and blink of cursor position
  * character (B).
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.displayOn = function() {
+LCD.prototype.displayOn = function(callback) {
   this._displaycontrol |= DISPLAYON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns off the cursor.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.cursorOff = function() {
+LCD.prototype.cursorOff = function(callback) {
   this._displaycontrol &= ~CURSORON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns on the cursor.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.cursorOn = function() {
+LCD.prototype.cursorOn = function(callback) {
   this._displaycontrol |= CURSORON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns off the cursor blinking character.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.blinkOff = function() {
+LCD.prototype.blinkOff = function(callback) {
   this._displaycontrol &= ~BLINKON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns on the cursor blinking character.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.blinkOn = function() {
+LCD.prototype.blinkOn = function(callback) {
   this._displaycontrol |= BLINKON;
   this._sendCommand(DISPLAYCONTROL | this._displaycontrol);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns off the back light.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.backlightOff = function() {
+LCD.prototype.backlightOff = function(callback) {
   this._backlightVal = NOBACKLIGHT;
   this._expanderWrite(0);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Turns on the back light.
  *
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.backlightOn = function() {
+LCD.prototype.backlightOn = function(callback) {
   this._backlightVal = BACKLIGHT;
   this._expanderWrite(0);
+  if (typeof callback === "function") {
+    callback();
+  }
 };
 
 /**
  * Prints characters on the LCD.
  *
  * @param {String}
+ * @param {Function} [callback]
  * @return {null}
  * @publish
  */
-LCD.prototype.print = function(str) {
+LCD.prototype.print = function(str, callback) {
   var chars = str.split("");
 
   for (var i = 0; i < chars.length; i++) {
     this._writeData(chars[i].charCodeAt(0));
+  }
+
+  if (typeof callback === "function") {
+    callback();
   }
 };
 
@@ -15946,13 +17037,87 @@ LCD.prototype._sendData = function(val, mode) {
   this._write4bits(lownib | mode);
 };
 
-},{"cylon":76}],69:[function(require,module,exports){
+},{"./i2c-driver":72,"cylon":83}],74:[function(require,module,exports){
+/*
+ * LIDAR-Lite driver
+ * http://cylonjs.com
+ *
+ * Copyright (c) 2015 The Hybrid Group
+ * Licensed under the Apache 2.0 license.
+*/
+
+// jshint unused:false
+
+"use strict";
+
+var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
+
+// Register to write to initiate ranging.
+var RegisterMeasure = 0x00,
+// Value to initiate ranging.
+MeasureValue = 0x04,
+// Register to get both High and Low bytes in 1 call.
+RegisterHighLowB = 0x8f;
+
+/**
+ * LIDAR-Lite Driver
+ *
+ * @constructor lidar-lite
+ */
+var LIDARLite = module.exports = function LIDARLite() {
+  LIDARLite.__super__.constructor.apply(this, arguments);
+  this.address = this.address || 0x62;
+  this.commands = {
+    distance: this.distance
+  };
+};
+
+Cylon.Utils.subclass(LIDARLite, I2CDriver);
+
+/**
+ * Returns the distance data for the LIDAR-Lite in cm.
+ *
+ * @param {Function} callback
+ * @return {null}
+ * @publish
+ */
+LIDARLite.prototype.distance = function(callback) {
+  this.connection.i2cWrite(this.address, RegisterMeasure, MeasureValue);
+  Cylon.Utils.sleep(20);
+
+  this.connection.i2cRead(
+    this.address,
+    RegisterHighLowB,
+    2,
+    function(err, data) {
+      if ("function" === typeof(callback)) {
+        callback(err, this.parseDistance(data));
+      }
+    }.bind(this)
+  );
+};
+
+/**
+ * parseDistance
+ *
+ * @param {Number} val
+ * @return {number} represents the current distance
+ */
+LIDARLite.prototype.parseDistance = function(val) {
+  return (val[0] << 8) + val[1];
+};
+
+},{"./i2c-driver":72,"cylon":83}],75:[function(require,module,exports){
 (function (Buffer){
 // jshint unused:false
 
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 var WHO_AM_I_G = 0x0F,
     CTRL_REG1_G = 0x20,
@@ -16004,14 +17169,14 @@ var G_ODR_95_BW_125  = 0x0, //   95         12.5
 /**
  * A LSM9DS0G Driver
  *
- * @constructor
+ * @constructor lsm9ds0g
  * @param {Object=} opts
  * @param {Number} opts.scale
  * @param {Number} opts.odr
  */
 var LSM9DS0G = module.exports = function LSM9DS0G(opts) {
   LSM9DS0G.__super__.constructor.apply(this, arguments);
-  this.address = 0x6b;
+  this.address = this.address || 0x6b;
 
   this.scale = opts.scale || G_SCALE_245DPS;
   this.odr = opts.odr || G_ODR_95_BW_125;
@@ -16021,7 +17186,7 @@ var LSM9DS0G = module.exports = function LSM9DS0G(opts) {
   };
 };
 
-Cylon.Utils.subclass(LSM9DS0G, Cylon.Driver);
+Cylon.Utils.subclass(LSM9DS0G, I2CDriver);
 
 /**
  * Starts the driver
@@ -16031,16 +17196,6 @@ Cylon.Utils.subclass(LSM9DS0G, Cylon.Driver);
  */
 LSM9DS0G.prototype.start = function(callback) {
   this._initGyro();
-  callback();
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-LSM9DS0G.prototype.halt = function(callback) {
   callback();
 };
 
@@ -16128,12 +17283,14 @@ LSM9DS0G.prototype._initGyro = function() {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],70:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],76:[function(require,module,exports){
 (function (Buffer){
 // jshint unused:false
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 var OUT_TEMP_L_XM = 0x05,
     OUT_TEMP_H_XM = 0x06,
@@ -16195,11 +17352,11 @@ var OUT_TEMP_L_XM = 0x05,
 /**
  * A LSM9DS0XM Driver
  *
- * @constructor
+ * @constructor lsm9ds0xm
  */
 var LSM9DS0XM = module.exports = function LSM9DS0XM() {
   LSM9DS0XM.__super__.constructor.apply(this, arguments);
-  this.address = 0x1d;
+  this.address = this.address || 0x1d;
 
   this.commands = {
     getAccel: this.getAccel,
@@ -16207,7 +17364,7 @@ var LSM9DS0XM = module.exports = function LSM9DS0XM() {
   };
 };
 
-Cylon.Utils.subclass(LSM9DS0XM, Cylon.Driver);
+Cylon.Utils.subclass(LSM9DS0XM, I2CDriver);
 
 /**
  * Starts the driver
@@ -16218,16 +17375,6 @@ Cylon.Utils.subclass(LSM9DS0XM, Cylon.Driver);
 LSM9DS0XM.prototype.start = function(callback) {
   this._initAccel();
   this._initMag();
-  callback();
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-LSM9DS0XM.prototype.halt = function(callback) {
   callback();
 };
 
@@ -16381,13 +17528,13 @@ LSM9DS0XM.prototype._initMag = function() {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],71:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],77:[function(require,module,exports){
 (function (Buffer){
 /*
  * MPL115A2 I2C Barometric Pressure + Temperature sensor driver
  * http://cylonjs.com
  *
- * Copyright (c) 2013-14 The Hybrid Group
+ * Copyright (c) 2013-2015 The Hybrid Group
  * Licensed under the Apache 2.0 license.
 */
 
@@ -16396,6 +17543,8 @@ LSM9DS0XM.prototype._initMag = function() {
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 var MPL115A2_REGISTER_PRESSURE_MSB = 0x00,
     MPL115A2_REGISTER_PRESSURE_LSB = 0x01,
@@ -16414,18 +17563,18 @@ var MPL115A2_REGISTER_PRESSURE_MSB = 0x00,
 /**
  * A MPL115A2 Driver
  *
- * @constructor
+ * @constructor mpl115a2
  */
 var Mpl115A2 = module.exports = function Mpl115A2() {
   Mpl115A2.__super__.constructor.apply(this, arguments);
-  this.address = 0x60;
+  this.address = this.address || 0x60;
   this.commands = {
     get_pressure: this.getPressure,
     get_temperature: this.getTemperature
   };
 };
 
-Cylon.Utils.subclass(Mpl115A2, Cylon.Driver);
+Cylon.Utils.subclass(Mpl115A2, I2CDriver);
 
 /**
  * Starts the driver
@@ -16435,16 +17584,6 @@ Cylon.Utils.subclass(Mpl115A2, Cylon.Driver);
  */
 Mpl115A2.prototype.start = function(callback) {
   this.readCoefficients(callback);
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-Mpl115A2.prototype.halt = function(callback) {
-  callback();
 };
 
 Mpl115A2.prototype.readCoefficients = function(callback) {
@@ -16477,7 +17616,8 @@ Mpl115A2.prototype.readCoefficients = function(callback) {
 Mpl115A2.prototype.getPT = function(callback) {
   var self = this;
 
-  this.connection.i2cWrite(this.address, MPL115A2_REGISTER_STARTCONVERSION);
+  this.connection.i2cWrite(this.address, 
+                           MPL115A2_REGISTER_STARTCONVERSION, [0x00]);
   this.connection.i2cWrite(this.address, 0x00);
 
   Cylon.Utils.sleep(5);
@@ -16530,7 +17670,7 @@ Mpl115A2.prototype.getPressure = Mpl115A2.prototype.getPT;
 Mpl115A2.prototype.getTemperature = Mpl115A2.prototype.getPT;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],72:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],78:[function(require,module,exports){
 (function (Buffer){
 /*
  * MPU6050 I2C accelerometer and temperature sensor driver
@@ -16545,6 +17685,8 @@ Mpl115A2.prototype.getTemperature = Mpl115A2.prototype.getPT;
 "use strict";
 
 var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
 
 var MPU6050_RA_ACCEL_XOUT_H = 0x3B,
     MPU6050_RA_PWR_MGMT_1 = 0x6B,
@@ -16568,11 +17710,11 @@ var MPU6050_RA_ACCEL_XOUT_H = 0x3B,
 /**
  * A MPU6050 Driver
  *
- * @constructor
+ * @constructor mpu6050
  */
 var Mpu6050 = module.exports = function Mpu6050() {
   Mpu6050.__super__.constructor.apply(this, arguments);
-  this.address = 0x68; // DataSheet
+  this.address = this.address || 0x68; // DataSheet
   this.commands = {
     get_angular_velocity: this.getAngularVelocity,
     get_acceleration: this.getAcceleration,
@@ -16580,7 +17722,7 @@ var Mpu6050 = module.exports = function Mpu6050() {
   };
 };
 
-Cylon.Utils.subclass(Mpu6050, Cylon.Driver);
+Cylon.Utils.subclass(Mpu6050, I2CDriver);
 
 /**
  * Starts the driver
@@ -16590,40 +17732,28 @@ Cylon.Utils.subclass(Mpu6050, Cylon.Driver);
  */
 Mpu6050.prototype.start = function(callback) {
   // setClockSource
-  this.connection.i2cWrite(this.address, MPU6050_RA_PWR_MGMT_1);
-  this.connection.i2cWrite(this.address, MPU6050_PWR1_CLKSEL_BIT);
-  this.connection.i2cWrite(this.address, MPU6050_PWR1_CLKSEL_LENGTH);
-  this.connection.i2cWrite(this.address, MPU6050_CLOCK_PLL_XGYRO);
+  this._writeBits(MPU6050_RA_PWR_MGMT_1,
+                  [MPU6050_PWR1_CLKSEL_BIT,
+                   MPU6050_PWR1_CLKSEL_LENGTH,
+                   MPU6050_CLOCK_PLL_XGYRO]);
 
   // setFullScaleGyroRange
-  this.connection.i2cWrite(this.address, MPU6050_GYRO_FS_250);
-  this.connection.i2cWrite(this.address, MPU6050_RA_GYRO_CONFIG);
-  this.connection.i2cWrite(this.address, MPU6050_GCONFIG_FS_SEL_LENGTH);
-  this.connection.i2cWrite(this.address, MPU6050_GCONFIG_FS_SEL_BIT);
+  this._writeBits(MPU6050_RA_GYRO_CONFIG,
+                  [MPU6050_GCONFIG_FS_SEL_BIT,
+                   MPU6050_GCONFIG_FS_SEL_LENGTH,
+                   MPU6050_GYRO_FS_250]);
 
   // setFullScaleAccelRange
-  this.connection.i2cWrite(this.address, MPU6050_RA_ACCEL_CONFIG);
-  this.connection.i2cWrite(this.address, MPU6050_ACONFIG_AFS_SEL_BIT);
-  this.connection.i2cWrite(this.address, MPU6050_ACONFIG_AFS_SEL_LENGTH);
-  this.connection.i2cWrite(this.address, MPU6050_ACCEL_FS_2);
+  this._writeBits(MPU6050_RA_ACCEL_CONFIG,
+                  [MPU6050_ACONFIG_AFS_SEL_BIT,
+                   MPU6050_ACONFIG_AFS_SEL_LENGTH,
+                   MPU6050_ACCEL_FS_2]);
 
   // setSleepEnabled
-  this.connection.i2cWrite(this.address, MPU6050_RA_PWR_MGMT_1);
-  this.connection.i2cWrite(this.address, MPU6050_PWR1_SLEEP_BIT);
-  this.connection.i2cWrite(this.address, 0);
+  this._writeBits(MPU6050_RA_PWR_MGMT_1, [MPU6050_PWR1_SLEEP_BIT, false]);
 
   callback();
   this.emit("start");
-};
-
-/**
- * Stops the driver
- *
- * @param {Function} callback triggered when the driver is halted
- * @return {null}
- */
-Mpu6050.prototype.halt = function(callback) {
-  callback();
 };
 
 /**
@@ -16691,8 +17821,148 @@ Mpu6050.prototype.convertToCelsius = function (temp) {
   return (temp + 12412.0) / 340.0;
 };
 
+Mpu6050.prototype._bitMask = function(bit, bitLength) {
+  return ((1 << bitLength) - 1) << (1 + bit - bitLength);
+};
+
+Mpu6050.prototype._writeBits = function(func, bit, bitLength, value, callback) {
+  var that = this;
+  this.connection.i2cRead(this.address, func, 1, function(err, buffer) {
+    var mask = that.bitMask(bit, bitLength);
+    var newValue = buffer ^ ((buffer ^ (value << bit)) & mask);
+    console.log(newValue);
+    that.connection.i2cWrite(that.address, func, [newValue], callback);
+  });
+};
+
 }).call(this,require("buffer").Buffer)
-},{"buffer":5,"cylon":76}],73:[function(require,module,exports){
+},{"./i2c-driver":72,"buffer":5,"cylon":83}],79:[function(require,module,exports){
+/*
+ * PCA9685 driver
+ * http://cylonjs.com
+ *
+ * Copyright (c) 2015 The Hybrid Group
+ * Licensed under the Apache 2.0 license.
+ */
+
+// jshint unused:false
+
+"use strict";
+
+var Cylon = require("cylon");
+
+var I2CDriver = require("./i2c-driver");
+
+var PCA9685_MODE1 = 0x00,
+    PCA9685_PRESCALE = 0xFE,
+    PCA9685_SUBADR1 = 0x02,
+    PCA9685_SUBADR2 = 0x03,
+    PCA9685_SUBADR3 = 0x04,
+    LED0_ON_L = 0x06,
+    LED0_ON_H = 0x07,
+    LED0_OFF_L = 0x08,
+    LED0_OFF_H = 0x09,
+    ALLLED_ON_L = 0xFA,
+    ALLLED_ON_H = 0xFB,
+    ALLLED_OFF_L = 0xFC,
+    ALLLED_OFF_H = 0xFD;
+
+/**
+ * PCA9685 Driver
+ *
+ * @constructor pca9685
+ */
+var PCA9685 = module.exports = function PCA9685() {
+  PCA9685.__super__.constructor.apply(this, arguments);
+  this.address = this.address || 0x40;
+  this.commands = {
+    stop: this.stop,
+    set_pwm_freq: this.setPWMFreq,
+    set_pwm: this.setPWM
+  };
+};
+
+Cylon.Utils.subclass(PCA9685, I2CDriver);
+
+/**
+ * Starts the driver
+ *
+ * @param {Function} callback triggered when the driver is started
+ * @return {null}
+ */
+PCA9685.prototype.start = function(callback) {
+  this.connection.i2cWrite(this.address, PCA9685_MODE1, [0x00]);
+  this.connection.i2cWrite(this.address, ALLLED_OFF_H, [0x10]);
+  callback();
+};
+
+PCA9685.prototype.stop = function() {
+  this.connection.i2cWrite(this.address, ALLLED_OFF_H, [0x10]);
+};
+
+/**
+ * Set the servo frequency for the PCA9685
+ *
+ * @param {number} frequency
+ * @param {function} [callback]
+ * @return {null}
+ * @publish
+ */
+PCA9685.prototype.setPWMFreq = function(frequency, callback) {
+  // Adjust per https://github.com/adafruit/Adafruit-PWM-Servo-Driver-Library/
+  var prescaleval = 25000000;
+  prescaleval /= 4096.0;
+  prescaleval /= frequency;
+  prescaleval -= 1.0;
+  var prescale = Math.floor(prescaleval * 1.0 + 0.5);
+
+  this.connection.i2cRead(
+    this.address,
+    PCA9685_MODE1,
+    1,
+    function(err, data) {
+      var oldmode = data[0];
+      var newmode = [(oldmode & 0x7F) | 0x10]; // sleep
+      this.connection.i2cWrite(this.address, PCA9685_MODE1, newmode);
+
+      this.connection.i2cWrite(
+        this.address, PCA9685_PRESCALE, Math.floor(prescale)
+      );
+
+      this.connection.i2cWrite(this.address, PCA9685_MODE1, [oldmode]);
+
+      Cylon.Utils.sleep(100);
+
+      this.connection.i2cWrite(this.address, PCA9685_MODE1, [oldmode | 0x80]);
+
+      if (typeof callback === "function") {
+        callback(null, frequency);
+      }
+    }.bind(this));
+};
+
+/**
+ * Set the servo position for the PCA9685
+ *
+ * @param {number} servoNum
+ * @param {number} on
+ * @param {number} off
+ * @param {function} [callback]
+ * @return {null}
+ * @publish
+ */
+PCA9685.prototype.setPWM = function(channel, pulseon, pulseoff, callback) {
+  this.connection.i2cWrite(
+    this.address, LED0_ON_L + 4 * channel, [pulseon & 0xFF]);
+  this.connection.i2cWrite(
+    this.address, LED0_ON_H + 4 * channel, [pulseon >> 8]);
+  this.connection.i2cWrite(
+    this.address, LED0_OFF_L + 4 * channel, [pulseoff & 0xFF]);
+  this.connection.i2cWrite(
+    this.address, LED0_OFF_H + 4 * channel, [pulseoff >> 8], callback);
+};
+
+},{"./i2c-driver":72,"cylon":83}],80:[function(require,module,exports){
 /*
  * adaptor
  * cylonjs.com
@@ -16706,6 +17976,10 @@ Mpu6050.prototype.convertToCelsius = function (temp) {
 var Basestar = require("./basestar"),
     Utils = require("./utils"),
     _ = require("./utils/helpers");
+
+function formatErrorMessage(name, message) {
+  return ["Error in connection", "'" + name + "'", "- " + message].join(" ");
+}
 
 // Public: Creates a new Adaptor
 //
@@ -16730,13 +18004,37 @@ var Adaptor = module.exports = function Adaptor(opts) {
   this.details = {};
 
   _.each(opts, function(opt, name) {
-    if (!~["robot", "name", "adaptor", "events"].indexOf(name)) {
+    if (!_.includes(["robot", "name", "adaptor", "events"], name)) {
       this.details[name] = opt;
     }
   }, this);
 };
 
 Utils.subclass(Adaptor, Basestar);
+
+// Public: Basic #connect function. Must be overwritten by a descendent class
+//
+// Returns nothing, throws an error
+Adaptor.prototype.connect = function() {
+  var message = formatErrorMessage(
+    this.name,
+    "Adaptor#connect method must be overwritten by descendant classes."
+  );
+
+  throw new Error(message);
+};
+
+// Public: Basic #disconnect function. Must be overwritten by a descendent class
+//
+// Returns nothing, throws an error
+Adaptor.prototype.disconnect = function() {
+  var message = formatErrorMessage(
+    this.name,
+    "Adaptor#disconnect method must be overwritten by descendant classes."
+  );
+
+  throw new Error(message);
+};
 
 // Public: Expresses the Connection in JSON format
 //
@@ -16749,7 +18047,7 @@ Adaptor.prototype.toJSON = function() {
   };
 };
 
-},{"./basestar":74,"./utils":90,"./utils/helpers":91}],74:[function(require,module,exports){
+},{"./basestar":81,"./utils":97,"./utils/helpers":98}],81:[function(require,module,exports){
 /*
  * basestar
  * cylonjs.com
@@ -16784,6 +18082,27 @@ Utils.subclass(Basestar, EventEmitter);
 //
 // Returns the klass where the methods have been proxied
 Basestar.prototype.proxyMethods = Utils.proxyFunctionsToObject;
+
+// Public: Triggers a callback and emits an event with provided data
+//
+// event - name of event to be triggered
+// callback - callback function to be triggered
+// ...data - additional arguments to be passed to both event/callback
+//
+// Returns nothing
+Basestar.prototype.respond = function(event, callback, err) {
+  var args = Array.prototype.slice.call(arguments, 3);
+
+  if (!!err) {
+    this.emit("error", err);
+  } else {
+    this.emit.apply(this, [event].concat(args));
+  }
+
+  if (typeof callback === "function") {
+    callback.apply(this, [err].concat(args));
+  }
+};
 
 // Public: Defines an event handler that proxies events from a source object
 // to a target object
@@ -16844,7 +18163,7 @@ Basestar.prototype._proxyEvents = function(opts, source, target) {
   return this.defineEvent(opts);
 };
 
-},{"./utils":90,"./utils/helpers":91,"events":9}],75:[function(require,module,exports){
+},{"./utils":97,"./utils/helpers":98,"events":9}],82:[function(require,module,exports){
 /*
  * Cylon - Internal Configuration
  * cylonjs.com
@@ -16862,7 +18181,7 @@ module.exports = {
   testMode: false
 };
 
-},{}],76:[function(require,module,exports){
+},{}],83:[function(require,module,exports){
 (function (process){
 /*
  * cylon
@@ -16969,8 +18288,8 @@ Cylon.api = function api(Server, opts) {
           ];
         }
 
-        _.each(messages, _.arity(Logger.error, 1));
-        return;
+        _.each(messages, _.arity(Logger.fatal, 1));
+        throw new Error("Missing API plugin - cannot proceed");
       } else {
         throw e;
       }
@@ -17060,7 +18379,7 @@ process.on("SIGINT", function() {
 });
 
 }).call(this,require('_process'))
-},{"./adaptor":73,"./config":75,"./driver":77,"./io/digital-pin":79,"./io/utils":80,"./logger":81,"./robot":85,"./utils":90,"./utils/helpers":91,"_process":13,"async":93,"events":9,"readline":2}],77:[function(require,module,exports){
+},{"./adaptor":80,"./config":82,"./driver":84,"./io/digital-pin":86,"./io/utils":87,"./logger":88,"./robot":92,"./utils":97,"./utils/helpers":98,"_process":13,"async":100,"events":9,"readline":2}],84:[function(require,module,exports){
 /*
  * driver
  * cylonjs.com
@@ -17074,6 +18393,10 @@ process.on("SIGINT", function() {
 var Basestar = require("./basestar"),
     Utils = require("./utils"),
     _ = require("./utils/helpers");
+
+function formatErrorMessage(name, message) {
+  return ["Error in driver", "'" + name + "'", "- " + message].join(" ");
+}
 
 // Public: Creates a new Driver
 //
@@ -17102,13 +18425,37 @@ var Driver = module.exports = function Driver(opts) {
   _.each(opts, function(opt, name) {
     var banned = ["robot", "name", "connection", "driver", "events"];
 
-    if (!~banned.indexOf(name)) {
+    if (!_.includes(banned, name)) {
       this.details[name] = opt;
     }
   }, this);
 };
 
 Utils.subclass(Driver, Basestar);
+
+// Public: Basic #start function. Must be overwritten by a descendent class
+//
+// Returns nothing, throws an error
+Driver.prototype.start = function() {
+  var message = formatErrorMessage(
+    this.name,
+    "Driver#start method must be overwritten by descendant classes."
+  );
+
+  throw new Error(message);
+};
+
+// Public: Basic #halt function. Must be overwritten by a descendent class
+//
+// Returns nothing, throws an error
+Driver.prototype.halt = function() {
+  var message = formatErrorMessage(
+    this.name,
+    "Driver#halt method must be overwritten by descendant classes."
+  );
+
+  throw new Error(message);
+};
 
 Driver.prototype.setupCommands = function(commands, proxy) {
   if (proxy == null) {
@@ -17143,7 +18490,7 @@ Driver.prototype.toJSON = function() {
   };
 };
 
-},{"./basestar":74,"./utils":90,"./utils/helpers":91}],78:[function(require,module,exports){
+},{"./basestar":81,"./utils":97,"./utils/helpers":98}],85:[function(require,module,exports){
 (function (process){
 /*
  * Device/Connection Initializer
@@ -17206,7 +18553,7 @@ module.exports = function Initializer(type, opts) {
 };
 
 }).call(this,require('_process'))
-},{"./config":75,"./registry":84,"./utils/helpers":91,"_process":13}],79:[function(require,module,exports){
+},{"./config":82,"./registry":91,"./utils/helpers":98,"_process":13}],86:[function(require,module,exports){
 /*
  * Linux IO DigitalPin
  * cylonjs.com
@@ -17387,7 +18734,7 @@ DigitalPin.prototype._unexportPath = function() {
   return GPIO_PATH + "/unexport";
 };
 
-},{"../utils":90,"events":9,"fs":2}],80:[function(require,module,exports){
+},{"../utils":97,"events":9,"fs":2}],87:[function(require,module,exports){
 "use strict";
 
 module.exports = {
@@ -17418,7 +18765,8 @@ module.exports = {
   }
 };
 
-},{}],81:[function(require,module,exports){
+},{}],88:[function(require,module,exports){
+(function (process){
 /*
  * logger
  * cylonjs.com
@@ -17445,6 +18793,11 @@ var Logger = module.exports = {
     var logger = Config.logging.logger,
         level  = Config.logging.level || "info";
 
+    // --debug CLI flag overrides any other option
+    if (_.includes(process.argv, "--debug")) {
+      level = "debug";
+    }
+
     logger = (logger == null) ? BasicLogger : logger;
 
     this.logger = logger || NullLogger;
@@ -17468,7 +18821,8 @@ levels.forEach(function(level) {
   };
 });
 
-},{"./config":75,"./logger/basic_logger":82,"./logger/null_logger":83,"./utils/helpers":91}],82:[function(require,module,exports){
+}).call(this,require('_process'))
+},{"./config":82,"./logger/basic_logger":89,"./logger/null_logger":90,"./utils/helpers":98,"_process":13}],89:[function(require,module,exports){
 "use strict";
 
 var getArgs = function(args) {
@@ -17495,7 +18849,7 @@ var BasicLogger = module.exports = {
   };
 });
 
-},{}],83:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 "use strict";
 
 // The NullLogger is designed for cases where you want absolutely nothing to
@@ -17508,7 +18862,7 @@ var NullLogger = module.exports = {
   NullLogger[type] = function() {};
 });
 
-},{}],84:[function(require,module,exports){
+},{}],91:[function(require,module,exports){
 (function (process){
 /*
  * Registry
@@ -17524,7 +18878,8 @@ var NullLogger = module.exports = {
 
 "use strict";
 
-var Logger = require("./logger");
+var Logger = require("./logger"),
+    _ = require("./utils/helpers");
 
 // Explicitly these modules here, so Browserify can grab them later
 require("./test/loopback");
@@ -17580,7 +18935,7 @@ var Registry = module.exports = {
 
   findBy: function(prop, name) {
     // pluralize, if necessary
-    if (!/s$/.test(name)) {
+    if (prop.slice(-1) !== "s") {
       prop += "s";
     }
 
@@ -17614,7 +18969,7 @@ var Registry = module.exports = {
     for (var name in this.data) {
       var repo = this.data[name];
 
-      if (~repo[entry].indexOf(value)) {
+      if (repo[entry] && _.includes(repo[entry], value)) {
         return repo.module;
       }
     }
@@ -17629,7 +18984,7 @@ var Registry = module.exports = {
 });
 
 }).call(this,require('_process'))
-},{"./logger":81,"./test/loopback":86,"./test/ping":87,"./test/test-adaptor":88,"./test/test-driver":89,"_process":13}],85:[function(require,module,exports){
+},{"./logger":88,"./test/loopback":93,"./test/ping":94,"./test/test-adaptor":95,"./test/test-driver":96,"./utils/helpers":98,"_process":13}],92:[function(require,module,exports){
 (function (process){
 /*
  * robot
@@ -17679,6 +19034,9 @@ var Robot = module.exports = function Robot(opts) {
   }, this);
 
   this.initRobot(opts);
+
+  this.checkForBadSyntax(opts);
+
   this.initConnections(opts);
   this.initDevices(opts);
 
@@ -17687,10 +19045,14 @@ var Robot = module.exports = function Robot(opts) {
       return;
     }
 
-    this[name] = opt;
+    if (_.isFunction(opt)) {
+      this[name] = opt.bind(this);
 
-    if (opts.commands == null && _.isFunction(opt)) {
-      this.commands[name] = opt;
+      if (opts.commands == null) {
+        this.commands[name] = opt.bind(this);
+      }
+    } else {
+      this[name] = opt;
     }
   }, this);
 
@@ -17782,6 +19144,34 @@ Robot.prototype.initRobot = function(opts) {
   }
 };
 
+// Public: Checks options for bad Cylon syntax
+//
+// Returns nothing
+Robot.prototype.checkForBadSyntax = function(opts) {
+  var self = this;
+
+  var RobotDSLError = new Error("Unable to start robot due to a syntax error");
+  RobotDSLError.name = "RobotDSLError";
+
+  function has(prop) { return opts[prop] != null; }
+
+  function checkForSingleObjectSyntax(type) {
+    var plural = type + "s";
+
+    if (has(type) && !has(plural)) {
+      [
+        "The single-object '" + type + "' syntax for robots is not valid.",
+        "Instead, use the multiple-value '" + plural + "' key syntax.",
+        "Details: http://cylonjs.com/documentation/guides/working-with-robots/"
+      ].forEach(function(str) { self.log("fatal", str); });
+
+      throw RobotDSLError;
+    }
+  }
+
+  ["connection", "device"].forEach(checkForSingleObjectSyntax);
+};
+
 // Public: Initializes all connections for the robot
 //
 // opts - options array passed to constructor
@@ -17790,39 +19180,26 @@ Robot.prototype.initRobot = function(opts) {
 Robot.prototype.initConnections = function(opts) {
   this.log("info", "Initializing connections.");
 
-  if (opts.connection == null && opts.connections == null) {
+  if (opts.connections == null) {
     return this.connections;
   }
 
-  if (opts.connection) {
-    this.deprecationWarning("connection");
-    this.connection(opts.connection.name, opts.connection);
-    return this.connections;
-  }
+  _.each(opts.connections, function(conn, key) {
+    var name = _.isString(key) ? key : conn.name;
 
-  if (_.isObjectLoose(opts.connections)) {
-    if (_.isArray(opts.connections)) {
-      this.performArraySetup(opts.connections, "connection", "connections");
-      return this.connections;
+    if (conn.devices) {
+      opts.devices = opts.devices || {};
+
+      _.each(conn.devices, function(device, d) {
+        device.connection = name;
+        opts.devices[d] = device;
+      });
+
+      delete conn.devices;
     }
 
-    _.each(opts.connections, function(conn, key) {
-      var name = _.isString(key) ? key : conn.name;
-
-      if (conn.devices) {
-        opts.devices = opts.devices || {};
-
-        _.each(conn.devices, function(device, d) {
-          device.connection = name;
-          opts.devices[d] = device;
-        });
-
-        delete conn.devices;
-      }
-
-      this.connection(name, conn);
-    }, this);
-  }
+    this.connection(name, conn);
+  }, this);
 
   return this.connections;
 };
@@ -17870,7 +19247,7 @@ Robot.prototype.device = function(name, device) {
 Robot.prototype.initDevices = function(opts) {
   this.log("info", "Initializing devices.");
 
-  if (opts.device == null && opts.devices == null) {
+  if (opts.devices == null) {
     return this.devices;
   }
 
@@ -17879,23 +19256,10 @@ Robot.prototype.initDevices = function(opts) {
     throw new Error("No connections specified");
   }
 
-  if (opts.device) {
-    this.deprecationWarning("device");
-    this.device(opts.device.name, opts.device);
-    return this.devices;
-  }
-
-  if (_.isObjectLoose(opts.devices)) {
-    if (_.isArray(opts.devices)) {
-      this.performArraySetup(opts.devices, "device", "devices");
-      return this.devices;
-    }
-
-    _.each(opts.devices, function(device, key) {
-      var name = _.isString(key) ? key : device.name;
-      this.device(name, device);
-    }, this);
-  }
+  _.each(opts.devices, function(device, key) {
+    var name = _.isString(key) ? key : device.name;
+    this.device(name, device);
+  }, this);
 
   return this.devices;
 };
@@ -18058,33 +19422,8 @@ Robot.prototype.log = function(level) {
   Logger[level].apply(null, args);
 };
 
-Robot.prototype.performArraySetup = function(things, typeOfThing, arrayName) {
-  var str = "Specifying ";
-  str += arrayName;
-  str += " as an array is deprecated. ";
-  str += "It will be removed in 1.0.0.";
-
-  this.log("warn", str);
-
-  things.forEach(function(t, key) {
-    var name = _.isString(key) === "string" ? key : t.name;
-    this[typeOfThing](name, t);
-  }, this);
-};
-
-Robot.prototype.deprecationWarning = function(kind) {
-  var msg = "Specifying a single ";
-  msg += kind;
-  msg += " with the '";
-  msg += kind;
-  msg += "' key ";
-  msg += "is deprecated. It will be removed in 1.0.0.";
-
-  this.log("warn", msg);
-};
-
 }).call(this,require('_process'))
-},{"./config":75,"./initializer":78,"./logger":81,"./utils":90,"./utils/helpers":91,"_process":13,"async":93,"events":9}],86:[function(require,module,exports){
+},{"./config":82,"./initializer":85,"./logger":88,"./utils":97,"./utils/helpers":98,"_process":13,"async":100,"events":9}],93:[function(require,module,exports){
 /*
  * Loopback adaptor
  * cylonjs.com
@@ -18117,7 +19456,7 @@ Loopback.prototype.disconnect = function(callback) {
 Loopback.adaptors = ["loopback"];
 Loopback.adaptor = function(opts) { return new Loopback(opts); };
 
-},{"../adaptor":73,"../utils":90}],87:[function(require,module,exports){
+},{"../adaptor":80,"../utils":97}],94:[function(require,module,exports){
 /*
  * Ping driver
  * cylonjs.com
@@ -18159,7 +19498,7 @@ Ping.prototype.halt = function(callback) {
 Ping.drivers = ["ping"];
 Ping.driver = function(opts) { return new Ping(opts); };
 
-},{"../driver":77,"../utils":90}],88:[function(require,module,exports){
+},{"../driver":84,"../utils":97}],95:[function(require,module,exports){
 /*
  * Test adaptor
  * cylonjs.com
@@ -18184,7 +19523,7 @@ Utils.subclass(TestAdaptor, Adaptor);
 TestAdaptor.adaptors = ["test"];
 TestAdaptor.adaptor = function(opts) { return new TestAdaptor(opts); };
 
-},{"../adaptor":73,"../utils":90}],89:[function(require,module,exports){
+},{"../adaptor":80,"../utils":97}],96:[function(require,module,exports){
 /*
  * Test driver
  * cylonjs.com
@@ -18209,7 +19548,7 @@ Utils.subclass(TestDriver, Driver);
 TestDriver.drivers = ["test"];
 TestDriver.driver = function(opts) { return new TestDriver(opts); };
 
-},{"../driver":77,"../utils":90}],90:[function(require,module,exports){
+},{"../driver":84,"../utils":97}],97:[function(require,module,exports){
 (function (global){
 /*
  * Cylon - Utils
@@ -18463,7 +19802,7 @@ var Utils = module.exports = {
 Utils.bootstrap();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./utils/helpers":91,"./utils/monkey-patches":92}],91:[function(require,module,exports){
+},{"./utils/helpers":98,"./utils/monkey-patches":99}],98:[function(require,module,exports){
 // A collection of useful helper functions, used internally but not exported
 // with the rest of Cylon. 
 "use strict";
@@ -18669,7 +20008,15 @@ extend(H, {
   partialRight: partialRight
 });
 
-},{}],92:[function(require,module,exports){
+function includes(arr, value) {
+  return !!~arr.indexOf(value);
+}
+
+extend(H, {
+  includes: includes
+});
+
+},{}],99:[function(require,module,exports){
 "use strict";
 
 var max = Math.max,
@@ -18763,9 +20110,9 @@ module.exports.install = function() {
   };
 };
 
-},{}],93:[function(require,module,exports){
+},{}],100:[function(require,module,exports){
 arguments[4][40][0].apply(exports,arguments)
-},{"_process":13,"dup":40}],94:[function(require,module,exports){
+},{"_process":13,"dup":40}],101:[function(require,module,exports){
 (function (process){
 "use strict";
 
@@ -18807,7 +20154,7 @@ Cylon.robot({
 Cylon.start();
 
 }).call(this,require('_process'))
-},{"./browser-logger":1,"_process":13,"cylon":76}],"cylon-firmata":[function(require,module,exports){
+},{"./browser-logger":1,"_process":13,"cylon":83}],"cylon-firmata":[function(require,module,exports){
 /*
  * cylon-firmata
  * http://cylonjs.com
@@ -18851,7 +20198,8 @@ var Drivers = {
   "motor": require("./motor"),
   "servo": require("./servo"),
   "ir-range-sensor": require("./ir-range-sensor"),
-  "direct-pin": require("./direct-pin")
+  "direct-pin": require("./direct-pin"),
+  "rgb-led": require("./rgb-led")
 };
 
 module.exports = {
@@ -18868,14 +20216,14 @@ module.exports = {
   }
 };
 
-},{"./analog-sensor":55,"./button":56,"./continuous-servo":57,"./direct-pin":58,"./ir-range-sensor":59,"./led":60,"./makey-button":61,"./maxbotix":62,"./motor":63,"./servo":64}],"cylon-i2c":[function(require,module,exports){
+},{"./analog-sensor":58,"./button":59,"./continuous-servo":60,"./direct-pin":61,"./ir-range-sensor":62,"./led":63,"./makey-button":64,"./maxbotix":65,"./motor":66,"./rgb-led":67,"./servo":68}],"cylon-i2c":[function(require,module,exports){
 /*
  * cylon-gpio
  * http://cylonjs.com
  *
  * Copyright (c) 2013-2014 The Hybrid Group
  * Licensed under the Apache 2.0 license.
-*/
+ */
 
 // jshint unused:false
 
@@ -18891,7 +20239,9 @@ var Drivers = {
   "mpu6050": require("./mpu6050"),
   "lcd": require("./lcd"),
   "lsm9ds0g": require("./lsm9ds0g"),
-  "lsm9ds0xm": require("./lsm9ds0xm")
+  "lsm9ds0xm": require("./lsm9ds0xm"),
+  "lidar-lite": require("./lidar-lite"),
+  "pca9685": require("./pca9685")
 };
 
 module.exports = {
@@ -18908,4 +20258,4 @@ module.exports = {
   }
 };
 
-},{"./blinkm":65,"./bmp180":66,"./hmc6352":67,"./lcd":68,"./lsm9ds0g":69,"./lsm9ds0xm":70,"./mpl115a2":71,"./mpu6050":72,"cylon":76}]},{},[94]);
+},{"./blinkm":69,"./bmp180":70,"./hmc6352":71,"./lcd":73,"./lidar-lite":74,"./lsm9ds0g":75,"./lsm9ds0xm":76,"./mpl115a2":77,"./mpu6050":78,"./pca9685":79,"cylon":83}]},{},[101]);

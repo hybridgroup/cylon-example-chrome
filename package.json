@@ -5,8 +5,10 @@
   "private": true,
 
   "dependencies": {
-    "cylon": "0.22.1",
-    "cylon-firmata": "0.19.0",
-    "browserify": "9.0.3"
+    "cylon": "1.0.0",
+    "cylon-firmata": "0.20.0",
+    "cylon-gpio": "0.23.0",
+    "cylon-i2c": "0.21.0",
+    "browserify": "9.0.7"
   }
 }
